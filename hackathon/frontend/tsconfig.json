@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "jsx": "react-native",
+    "lib": ["ESNext"],
+    "target": "ESNext",
+    "moduleResolution": "bundler",
+    "allowJs": true,
+    "strict": true,
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "types": ["react", "react-native", "expo-router"]
+  },
+  "extends": "expo/tsconfig.base"
+}

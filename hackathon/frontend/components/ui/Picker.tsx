@@ -67,29 +67,38 @@ export function Picker({
               </Pressable>
             </View>
             
-            <ScrollView style={styles.optionsList}>
-              {options.map((option) => (
-                <Pressable
-                  key={option.value}
-                  style={[
-                    styles.option,
-                    option.value === value ? styles.selectedOption : null,
-                  ]}
-                  onPress={() => handleSelectOption(option.value)}
-                >
-                  <Text
+            <ScrollView 
+              style={styles.optionsList}
+              showsVerticalScrollIndicator={true}
+            >
+              {options.length > 0 ? (
+                options.map((option) => (
+                  <Pressable
+                    key={option.value}
                     style={[
-                      styles.optionText,
-                      option.value === value ? styles.selectedOptionText : null,
+                      styles.option,
+                      option.value === value ? styles.selectedOption : null,
                     ]}
+                    onPress={() => handleSelectOption(option.value)}
                   >
-                    {option.label}
-                  </Text>
-                  {option.value === value && (
-                    <Feather name="check" size={20} color="#111827" />
-                  )}
-                </Pressable>
-              ))}
+                    <Text
+                      style={[
+                        styles.optionText,
+                        option.value === value ? styles.selectedOptionText : null,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                    {option.value === value && (
+                      <Feather name="check" size={20} color="#111827" />
+                    )}
+                  </Pressable>
+                ))
+              ) : (
+                <View style={styles.noOptionsContainer}>
+                  <Text style={styles.noOptionsText}>선택할 수 있는 옵션이 없습니다</Text>
+                </View>
+              )}
             </ScrollView>
           </View>
         </View>
@@ -146,6 +155,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '70%',
+    minHeight: '50%',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -165,6 +175,7 @@ const styles = StyleSheet.create({
   },
   optionsList: {
     flex: 1,
+    maxHeight: 400,
   },
   option: {
     flexDirection: 'row',
@@ -186,5 +197,14 @@ const styles = StyleSheet.create({
   selectedOptionText: {
     color: '#111827',
     fontWeight: '600',
+  },
+  noOptionsContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  noOptionsText: {
+    fontSize: 16,
+    color: '#9ca3af',
+    textAlign: 'center',
   },
 });

@@ -1,8 +1,9 @@
 from fastapi import APIRouter, HTTPException, Depends, Header
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlmodel import Session
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
+from pydantic import BaseModel
 
 from ..db.session import get_session
 from ..models.user import (
@@ -18,6 +19,21 @@ from ..services.user_service import UserService, JWTService
 
 router = APIRouter()
 security = HTTPBearer()
+
+
+class FirebaseAuthRequest(BaseModel):
+    """Firebase 인증 요청 모델"""
+    firebase_uid: str
+    email: str
+    display_name: Optional[str] = None
+
+
+class UserListResponse(BaseModel):
+    """사용자 목록 응답 모델"""
+    users: List[UserResponse]
+    total_count: int
+    page: int
+    page_size: int
 
 
 def get_user_service(db: Session = Depends(get_session)) -> UserService:
@@ -90,7 +106,8 @@ async def signup(
             display_name=request.display_name,
             university=request.university,
             department=request.department,
-            grade_level=request.grade_level
+            grade_level=request.grade_level,
+            firebase_uid=request.firebase_uid
         )
         
         if not result.success:
@@ -151,6 +168,63 @@ async def login(
         raise HTTPException(
             status_code=500,
             detail=f"로그인 중 오류가 발생했습니다: {str(e)}"
+        )
+
+
+@router.post("/auth/firebase", response_model=LoginResponse)
+async def firebase_auth(
+    request: FirebaseAuthRequest,
+    user_service: UserService = Depends(get_user_service)
+):
+    """Firebase UID로 인증하여 JWT 토큰 발급"""
+    try:
+        # Firebase UID로 사용자 조회
+        user = user_service.get_user_by_firebase_uid(request.firebase_uid)
+        
+        if not user:
+            # 사용자가 없으면 새로 생성 (자동 회원가입)
+            result = await user_service.create_user_from_firebase(
+                email=request.email,
+                firebase_uid=request.firebase_uid,
+                display_name=request.display_name
+            )
+            
+            if not result.success:
+                raise HTTPException(status_code=400, detail=result.message)
+            
+            user = user_service.get_user_by_firebase_uid(request.firebase_uid)
+            if not user:
+                raise HTTPException(status_code=500, detail="사용자 생성 후 조회 실패")
+        
+        # JWT 토큰 생성
+        access_token = JWTService.create_access_token(user)
+        
+        user_response = UserResponse(
+            id=user.id,
+            email=user.email,
+            display_name=user.display_name,
+            current_university=user.current_university,
+            current_department=user.current_department,
+            grade_level=user.grade_level,
+            profile_image=user.profile_image,
+            is_verified=user.is_verified,
+            created_at=user.created_at,
+            last_login_at=user.last_login_at
+        )
+        
+        return LoginResponse(
+            access_token=access_token,
+            token_type="bearer",
+            user=user_response,
+            expires_in=24 * 3600  # 24시간
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Firebase 인증 중 오류가 발생했습니다: {str(e)}"
         )
 
 
@@ -294,4 +368,49 @@ async def delete_account(
         raise HTTPException(
             status_code=500,
             detail=f"회원 탈퇴 중 오류가 발생했습니다: {str(e)}"
+        )
+
+
+@router.get("/auth/users", response_model=UserListResponse)
+async def get_users(
+    page: int = 1,
+    page_size: int = 20,
+    user_service: UserService = Depends(get_user_service)
+):
+    """사용자 목록 조회 (관리자용)"""
+    try:
+        # 페이지네이션 계산
+        offset = (page - 1) * page_size
+        
+        # 사용자 목록 조회
+        users = user_service.get_users_paginated(offset=offset, limit=page_size)
+        total_count = user_service.get_total_users_count()
+        
+        # UserResponse로 변환
+        user_responses = []
+        for user in users:
+            user_responses.append(UserResponse(
+                id=user.id,
+                email=user.email,
+                display_name=user.display_name,
+                current_university=user.current_university,
+                current_department=user.current_department,
+                grade_level=user.grade_level,
+                profile_image=user.profile_image,
+                is_verified=user.is_verified,
+                created_at=user.created_at,
+                last_login_at=user.last_login_at
+            ))
+        
+        return UserListResponse(
+            users=user_responses,
+            total_count=total_count,
+            page=page,
+            page_size=page_size
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"사용자 목록 조회 중 오류가 발생했습니다: {str(e)}"
         )

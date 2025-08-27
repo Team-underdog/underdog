@@ -1,6 +1,6 @@
 import aiohttp
 import requests
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from sqlmodel import Session, select
 from datetime import datetime, timedelta
 import jwt
@@ -24,38 +24,169 @@ class SSAFYAPIService:
     
     @staticmethod
     async def check_email_exists(email: str) -> Dict[str, Any]:
-        """SSAFY API에서 이메일 존재 여부 확인"""
+        """SSAFY API에서 이메일 존재 여부 확인 (MEMBER_02)"""
         try:
-            # SSAFY API에 이메일 확인 요청
-            # 실제로는 userId로 요청하지만, 이메일 중복 확인 목적으로 사용
+            logger.info(f"🔍 SSAFY API 이메일 중복 확인 시작: {email}")
+            
+            # SSAFY API MEMBER_02 (사용자 계정 조회) 요청
             body = {
                 "apiKey": settings.SSAFY_API_KEY,
-                "userId": email  # 이메일을 userId로 사용
+                "userId": email
             }
+            
+            logger.info(f"📤 SSAFY API 요청 전송: {settings.SSAFY_EMAIL_CHECK_URL}")
+            logger.info(f"📋 요청 본문: {body}")
             
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                    settings.SSAFY_LOGIN_URL, 
+                    settings.SSAFY_EMAIL_CHECK_URL,  # 올바른 엔드포인트 사용
                     json=body, 
                     timeout=10
                 ) as response:
                     
-                    if response.status == 200:
-                        data = await response.json()
-                        # SSAFY API에서 성공 응답이 오면 이미 등록된 이메일
-                        if data.get("userKey") or data.get("userId"):
-                            return {
-                                "exists": True,
-                                "ssafy_data": data
-                            }
+                    response_text = await response.text()
+                    logger.info(f"📥 SSAFY API 응답 상태: {response.status}")
+                    logger.info(f"📥 SSAFY API 응답 내용: {response_text}")
                     
-                    # 404나 에러 응답이면 등록되지 않은 이메일
-                    return {"exists": False}
+                    if response.status == 200:
+                        try:
+                            data = await response.json()
+                            # SSAFY API에서 성공 응답이 오면 이미 등록된 이메일
+                            if data.get("userKey") or data.get("userId"):
+                                logger.info(f"✅ SSAFY API에서 이미 등록된 이메일 확인: {email}")
+                                return {
+                                    "exists": True,
+                                    "ssafy_data": data
+                                }
+                            else:
+                                logger.info(f"✅ SSAFY API에서 등록되지 않은 이메일 확인: {email}")
+                                return {"exists": False}
+                        except Exception as parse_error:
+                            logger.error(f"❌ SSAFY API 응답 파싱 실패: {parse_error}")
+                            return {"exists": False, "error": str(parse_error)}
+                    elif response.status == 404:
+                        # 404 응답이면 등록되지 않은 이메일
+                        logger.info(f"✅ SSAFY API에서 등록되지 않은 이메일 확인 (404): {email}")
+                        return {"exists": False}
+                    else:
+                        # 기타 HTTP 상태 코드 오류
+                        logger.warning(f"⚠️ SSAFY API HTTP 오류: {response.status} - {response_text}")
+                        # API 에러시에는 false로 처리하여 회원가입 진행 허용
+                        return {"exists": False, "error": f"HTTP {response.status}"}
                     
         except Exception as e:
-            logger.error(f"SSAFY API 이메일 확인 실패: {e}")
+            logger.error(f"❌ SSAFY API 이메일 확인 실패: {e}")
             # API 에러시에는 false로 처리하여 회원가입 진행 허용
             return {"exists": False, "error": str(e)}
+    
+    @staticmethod
+    async def create_user_account(email: str) -> Dict[str, Any]:
+        """SSAFY API에 새 사용자 계정 생성 (MEMBER_01)"""
+        try:
+            logger.info(f"🏭 SSAFY API 사용자 계정 생성 시작: {email}")
+            
+            # SSAFY API MEMBER_01 요청 본문 구성 (단순한 형식)
+            payload = {
+                "apiKey": settings.SSAFY_API_KEY,
+                "userId": email
+            }
+            
+            logger.info(f"📤 SSAFY API 요청 전송: {settings.SSAFY_API_BASE_URL}/member/")
+            logger.info(f"📋 요청 본문: {payload}")
+            
+            # SSAFY API 호출
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{settings.SSAFY_API_BASE_URL}/member/",
+                    json=payload,
+                    timeout=30,
+                    headers={
+                        "Content-Type": "application/json",
+                        "User-Agent": "CampusCredo/1.0"
+                    }
+                ) as response:
+                    
+                    response_text = await response.text()
+                    logger.info(f"📥 SSAFY API 응답 상태: {response.status}")
+                    logger.info(f"📥 SSAFY API 응답 내용: {response_text}")
+                    
+                    if response.status == 200:
+                        try:
+                            data = await response.json()
+                            
+                            # SSAFY API 성공 응답 처리
+                            if data.get("responseCode") == "0000":  # 성공 코드
+                                user_key = data.get("userKey")
+                                if user_key:
+                                    logger.info(f"✅ SSAFY API 계정 생성 성공: {email} -> {user_key}")
+                                    return {
+                                        "success": True,
+                                        "user_key": user_key,
+                                        "message": "SSAFY API 계정이 성공적으로 생성되었습니다.",
+                                        "ssafy_data": data
+                                    }
+                                else:
+                                    logger.error(f"❌ SSAFY API 응답에 userKey가 없음: {data}")
+                                    return {
+                                        "success": False,
+                                        "message": "SSAFY API 응답에 userKey가 포함되지 않았습니다.",
+                                        "ssafy_data": data
+                                    }
+                            else:
+                                # SSAFY API 에러 응답 처리
+                                error_code = data.get("responseCode", "UNKNOWN")
+                                error_message = data.get("responseMessage", "알 수 없는 오류")
+                                logger.error(f"❌ SSAFY API 에러 응답: {error_code} - {error_message}")
+                                
+                                # 에러 코드별 메시지 매핑
+                                error_messages = {
+                                    "E4001": "입력 형식이 올바르지 않습니다.",
+                                    "E4002": "이미 존재하는 ID입니다.",
+                                    "E4004": "API 키가 올바르지 않습니다.",
+                                    "Q1001": "요청 형식이 올바르지 않습니다."
+                                }
+                                
+                                user_friendly_message = error_messages.get(error_code, error_message)
+                                return {
+                                    "success": False,
+                                    "message": f"SSAFY API 오류: {user_friendly_message}",
+                                    "error_code": error_code,
+                                    "ssafy_data": data
+                                }
+                        except Exception as parse_error:
+                            logger.error(f"❌ SSAFY API 응답 파싱 실패: {parse_error}")
+                            return {
+                                "success": False,
+                                "message": f"SSAFY API 응답 파싱 실패: {str(parse_error)}",
+                                "raw_response": response_text
+                            }
+                    else:
+                        # HTTP 상태 코드 오류
+                        logger.error(f"❌ SSAFY API HTTP 오류: {response.status} - {response_text}")
+                        return {
+                            "success": False,
+                            "message": f"SSAFY API 서버 오류 (HTTP {response.status}): {response_text}",
+                            "http_status": response.status
+                        }
+                        
+        except aiohttp.ClientTimeout:
+            logger.error(f"❌ SSAFY API 요청 시간 초과: {email}")
+            return {
+                "success": False,
+                "message": "SSAFY API 요청 시간 초과. 잠시 후 다시 시도해주세요."
+            }
+        except aiohttp.ClientConnectorError as e:
+            logger.error(f"❌ SSAFY API 연결 실패: {e}")
+            return {
+                "success": False,
+                "message": "SSAFY API 서버에 연결할 수 없습니다. 네트워크 상태를 확인해주세요."
+            }
+        except Exception as e:
+            logger.error(f"❌ SSAFY API 계정 생성 실패: {e}")
+            return {
+                "success": False,
+                "message": f"SSAFY API 계정 생성 중 오류가 발생했습니다: {str(e)}"
+            }
     
     @staticmethod
     async def register_to_ssafy(email: str) -> Dict[str, Any]:
@@ -139,7 +270,8 @@ class UserService:
         display_name: Optional[str] = None,
         university: Optional[str] = None,
         department: Optional[str] = None,
-        grade_level: Optional[int] = None
+        grade_level: Optional[int] = None,
+        firebase_uid: Optional[str] = None
     ) -> SignupResponse:
         """새 사용자 생성"""
         
@@ -159,6 +291,7 @@ class UserService:
             new_user = User(
                 email=email,
                 password_hash=User.hash_password(password),
+                firebase_uid=firebase_uid,  # Firebase UID 저장
                 display_name=display_name or email.split('@')[0],  # 기본 표시명
                 current_university=university,
                 current_department=department,
@@ -226,6 +359,113 @@ class UserService:
         return self.db.exec(
             select(User).where(User.email == email)
         ).first()
+    
+    def get_user_by_firebase_uid(self, firebase_uid: str) -> Optional[User]:
+        """Firebase UID로 사용자 조회"""
+        return self.db.exec(
+            select(User).where(User.firebase_uid == firebase_uid)
+        ).first()
+    
+    async def create_user_from_firebase(
+        self,
+        email: str,
+        firebase_uid: str,
+        display_name: Optional[str] = None
+    ) -> SignupResponse:
+        """Firebase 인증으로 새 사용자 생성"""
+        try:
+            # 1. 이메일 중복 확인
+            existing_user = self.db.exec(
+                select(User).where(User.email == email)
+            ).first()
+            
+            if existing_user:
+                # 이미 존재하는 사용자라면 Firebase UID만 업데이트
+                if not existing_user.firebase_uid:
+                    existing_user.firebase_uid = firebase_uid
+                    existing_user.updated_at = datetime.utcnow()
+                    self.db.add(existing_user)
+                    self.db.commit()
+                    self.db.refresh(existing_user)
+                
+                user_response = UserResponse(
+                    id=existing_user.id,
+                    email=existing_user.email,
+                    display_name=existing_user.display_name,
+                    current_university=existing_user.current_university,
+                    current_department=existing_user.current_department,
+                    grade_level=existing_user.grade_level,
+                    profile_image=existing_user.profile_image,
+                    is_verified=existing_user.is_verified,
+                    created_at=existing_user.created_at,
+                    last_login_at=existing_user.last_login_at
+                )
+                
+                return SignupResponse(
+                    success=True,
+                    message="기존 계정에 Firebase 인증이 연결되었습니다.",
+                    user=user_response
+                )
+            
+            # 2. 새 사용자 생성
+            new_user = User(
+                email=email,
+                password_hash="",  # Firebase 인증이므로 비밀번호 불필요
+                firebase_uid=firebase_uid,
+                display_name=display_name or email.split('@')[0],
+                is_verified=True,  # Firebase 인증이므로 이메일 인증 완료로 간주
+                last_login_at=datetime.utcnow()
+            )
+            
+            self.db.add(new_user)
+            self.db.commit()
+            self.db.refresh(new_user)
+            
+            user_response = UserResponse(
+                id=new_user.id,
+                email=new_user.email,
+                display_name=new_user.display_name,
+                current_university=new_user.current_university,
+                current_department=new_user.current_department,
+                grade_level=new_user.grade_level,
+                profile_image=new_user.profile_image,
+                is_verified=new_user.is_verified,
+                created_at=new_user.created_at,
+                last_login_at=new_user.last_login_at
+            )
+            
+            return SignupResponse(
+                success=True,
+                message="Firebase 인증으로 회원가입이 완료되었습니다.",
+                user=user_response
+            )
+            
+        except Exception as e:
+            logger.error(f"Firebase 사용자 생성 실패: {e}")
+            self.db.rollback()
+            return SignupResponse(
+                success=False,
+                message=f"Firebase 사용자 생성 중 오류가 발생했습니다: {str(e)}"
+            )
+    
+    def get_users_paginated(self, offset: int = 0, limit: int = 20) -> List[User]:
+        """페이지네이션을 사용한 사용자 목록 조회"""
+        return self.db.exec(
+            select(User)
+            .offset(offset)
+            .limit(limit)
+            .order_by(User.created_at.desc())
+        ).all()
+    
+    def get_total_users_count(self) -> int:
+        """전체 사용자 수 조회"""
+        from sqlmodel import select, func
+        result = self.db.exec(select(func.count(User.id)))
+        return result.first() or 0
+    
+    def get_all_users(self) -> List[User]:
+        """모든 사용자 조회 (페이지네이션 없음)"""
+        return self.db.exec(select(User).order_by(User.created_at.desc())).all()
 
 
 class JWTService:

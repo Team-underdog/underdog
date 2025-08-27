@@ -1,11 +1,36 @@
 # Backend
 
 ## 실행
+
+### 🚀 **백엔드 서버 실행 (권장 방법)**
 ```bash
-python3.11 -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+# 1. backend 디렉토리로 이동
+cd hackathon/backend
+
+# 2. 가상환경 활성화
+source venv/bin/activate
+
+# 3. 서버 실행
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
+
+### 📝 **초기 설정 (처음 실행 시)**
+```bash
+# 1. backend 디렉토리로 이동
+cd hackathon/backend
+
+# 2. 가상환경 생성 및 활성화
+python3.11 -m venv venv
+source venv/bin/activate
+
+# 3. 의존성 설치
+pip install -r requirements.txt
+
+# 4. 서버 실행
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+**⚠️ 중요**: 반드시 `hackathon/backend` 디렉토리에서 실행해야 합니다!
 
 ## 환경 변수 설정
 백엔드 실행 전 환경 변수를 설정하세요:
@@ -23,6 +48,13 @@ export CRAWLING_DELAY=1.0
 ```
 
 ## API 엔드포인트
+
+### 🔥 **새로운 SSAFY API 연동**
+- POST `/api/auth/account-balance` - 실시간 계좌 잔액 조회
+- POST `/api/auth/transaction-history` - 거래내역 조회 (최근 30일)
+- GET `/api/auth/user-financial-summary/{user_key}` - 종합 금융 요약
+- POST `/api/auth/verify-ssafy-email` - SSAFY 학생 이메일 검증
+- GET `/api/auth/ssafy-universities` - SSAFY 제휴 대학교 목록
 
 ### 기본 API
 - GET /api/health -> {status: "ok"}
@@ -120,6 +152,20 @@ python test_auth_v2.py
 ```bash
 python test_university_api.py
 ```
+
+## 🔥 **SSAFY API 통합 세부사항**
+
+### 실시간 금융 데이터 연동
+- **SSAFY 금융 API 51개 엔드포인트 지원**
+- **공통 헤더 자동 생성**: 기관코드, 거래고유번호, 전송시각 등
+- **Mock/실제 API 전환**: 개발 시 Mock 데이터, 배포 시 실제 API
+- **실시간 계좌 잔액**: 사용자별 계좌 정보 실시간 조회
+- **거래내역 분석**: 최근 30일 거래 패턴 분석 및 퀘스트 생성
+
+### 새로운 서비스 로직
+- **개인화 퀘스트 엔진**: 금융 데이터 기반 맞춤형 도전과제
+- **Campus Credo 점수 계산**: 금융 건전성 기반 실시간 점수 산출
+- **거래내역 활동 변환**: 금융 거래를 게임 활동으로 자동 변환
 
 ## 개발 참고사항
 - **FastAPI 자동 문서**: http://localhost:8000/docs

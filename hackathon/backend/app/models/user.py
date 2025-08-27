@@ -1,8 +1,11 @@
-from sqlmodel import SQLModel, Field
-from typing import Optional
+from sqlmodel import SQLModel, Field, Relationship
+from typing import Optional, List, TYPE_CHECKING
 from datetime import datetime
 from pydantic import BaseModel, EmailStr
 import hashlib
+
+if TYPE_CHECKING:
+    from .financial import BankAccount, UserProduct
 
 
 class User(SQLModel, table=True):
@@ -12,6 +15,7 @@ class User(SQLModel, table=True):
     # 회원 기본 정보
     email: str = Field(unique=True, index=True, description="이메일 주소")
     password_hash: str = Field(description="해시된 비밀번호")
+    firebase_uid: Optional[str] = Field(default=None, unique=True, index=True, description="Firebase UID")
     
     # SSAFY 연동 정보
     ssafy_user_id: Optional[str] = Field(default=None, unique=True, index=True, description="SSAFY API userId")
@@ -37,6 +41,10 @@ class User(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     last_login_at: Optional[datetime] = Field(default=None)
     
+    # 관계 정의
+    bank_accounts: List["BankAccount"] = Relationship(back_populates="user")
+    user_products: List["UserProduct"] = Relationship(back_populates="user")
+    
     @classmethod
     def hash_password(cls, password: str) -> str:
         """비밀번호를 해시화"""
@@ -60,6 +68,7 @@ class UserSignupRequest(BaseModel):
     university: Optional[str] = None
     department: Optional[str] = None
     grade_level: Optional[int] = None
+    firebase_uid: Optional[str] = None
 
 
 class UserLoginRequest(BaseModel):

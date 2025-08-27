@@ -4,11 +4,13 @@ import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
+import { signInWithEmail } from '../services/authService';
+
 import { Feather } from '@expo/vector-icons';
 import { PixelLogo } from '../components/PixelLogo';
 import { Input } from '../components/ui/Input';
 
-const apiBaseUrl: string = (Constants.expoConfig?.extra as any)?.apiBaseUrl || 'http://localhost:8000';
+const apiBaseUrl: string = (Constants.expoConfig?.extra as any)?.apiBaseUrl || 'http://192.168.219.108:8000';
 
 function isValidEmail(value: string): boolean {
   const re = /[^\s@]+@[^\s@]+\.[^\s@]+/;
@@ -21,15 +23,15 @@ function mapSsafyError(errorText?: string): string {
     const obj = JSON.parse(errorText);
     const code = obj.responseCode as string | undefined;
     if (code === 'E4001') return '입력 형식을 확인해주세요.';
-    if (code === 'E4002') return '이미 존재하는 ID입니다. 계정을 확인해주세요.';
-    if (code === 'E4004') return 'API KEY가 올바르지 않습니다. 관리자에게 문의하세요.';
-    if (code === 'Q1001') return '요청 형식이 올바르지 않습니다.';
+    if (code === 'E4002') return '이미 SSAFY API에 등록된 이메일입니다. (이미 가입된 이메일)';
+    if (code === 'E4004') return 'SSAFY API 키가 올바르지 않습니다. 관리자에게 문의하세요.';
+    if (code === 'Q1001') return 'SSAFY API 요청 형식이 올바르지 않습니다.';
     return obj.responseMessage || '일시적인 오류가 발생했어요. 잠시 후 다시 시도해주세요.';
   } catch (_) {
     if (errorText.includes('E4001')) return '입력 형식을 확인해주세요.';
-    if (errorText.includes('E4002')) return '이미 존재하는 ID입니다. 계정을 확인해주세요.';
-    if (errorText.includes('E4004')) return 'API KEY가 올바르지 않습니다. 관리자에게 문의하세요.';
-    if (errorText.includes('Q1001')) return '요청 형식이 올바르지 않습니다.';
+    if (errorText.includes('E4002')) return '이미 SSAFY API에 등록된 이메일입니다. (이미 가입된 이메일)';
+    if (errorText.includes('E4004')) return 'SSAFY API 키가 올바르지 않습니다. 관리자에게 문의하세요.';
+    if (errorText.includes('Q1001')) return 'SSAFY API 요청 형식이 올바르지 않습니다.';
     return '일시적인 오류가 발생했어요. 잠시 후 다시 시도해주세요.';
   }
 }
@@ -74,58 +76,71 @@ export default function LoginScreen() {
     if (errorMsg) setErrorMsg(null);
   }, [touched, errorMsg]);
 
-  const requestLogin = useCallback(async () => {
+  const handleLogin = async () => {
+    if (!userId || !password) {
+      setErrorMsg('이메일과 비밀번호를 입력해주세요.');
+      return;
+    }
+
     setLoading(true);
     setErrorMsg(null);
     setLastTriedId(userId);
+    
     try {
-      console.log('로그인 시도:', { apiBaseUrl, userId });
-      const res = await fetchWithTimeout(`${apiBaseUrl}/api/auth/login`, {
+      console.log('🏭 백엔드 API 로그인 시도:', userId);
+      
+      // 백엔드 API 로그인 시도
+      const response = await fetch(`${apiBaseUrl}/api/auth/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, password }),
-        timeoutMs: 10000,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: userId,
+          password: password,
+        }),
       });
-      
-      console.log('응답 상태:', res.status, res.statusText);
-      
-      if (!res.ok) {
-        console.log('HTTP 에러:', res.status);
-        setErrorMsg(`서버 오류가 발생했습니다. (${res.status})`);
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        return;
-      }
-      
-      const data = await res.json().catch((jsonError) => {
-        console.log('JSON 파싱 에러:', jsonError);
-        return {};
-      });
-      
-      console.log('응답 데이터:', data);
 
-      if (data?.error) {
-        const msg = mapSsafyError(String(data.error));
-        setErrorMsg(msg);
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        return;
-      }
-
-      const token = data?.access_token || 'demo-token';
-      await SecureStore.setItemAsync('authToken', token);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('로그인 성공', '계정에 로그인되었습니다.');
-    } catch (e: any) {
-      console.error('로그인 에러:', e);
-      if (e?.name === 'AbortError') {
-        setErrorMsg('네트워크가 불안정합니다. 잠시 후 다시 시도해주세요.');
+      if (response.ok) {
+        const backendResult = await response.json();
+        console.log('🏭 백엔드 API 로그인 성공:', backendResult);
+        
+        // 백엔드 로그인 성공 - JWT 토큰 사용
+        await SecureStore.setItemAsync('authToken', backendResult.access_token);
+        await SecureStore.setItemAsync('userInfo', JSON.stringify({
+          id: backendResult.user.id,
+          email: backendResult.user.email,
+          display_name: backendResult.user.display_name,
+          current_university: backendResult.user.current_university,
+          current_department: backendResult.user.current_department,
+          grade_level: backendResult.user.grade_level,
+          auth_method: 'backend'
+        }));
+        
+        // 로그인 성공 - 홈 화면으로 이동
+        router.replace('/home');
       } else {
-        setErrorMsg(`로그인에 실패했어요: ${e.message || '알 수 없는 오류'}`);
+        const errorData = await response.json();
+        console.error('❌ 백엔드 로그인 실패:', errorData);
+        
+        // SSAFY API 연동 관련 에러 메시지 처리
+        let errorMessage = errorData.detail || '로그인에 실패했습니다.';
+        
+        if (errorData.responseCode) {
+          errorMessage = mapSsafyError(JSON.stringify(errorData));
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        }
+        
+        setErrorMsg(errorMessage);
       }
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } catch (error) {
+      console.error('❌ 로그인 오류:', error);
+      setErrorMsg('네트워크 오류가 발생했습니다. 다시 시도해주세요.');
     } finally {
       setLoading(false);
     }
-  }, [apiBaseUrl, userId, password]);
+  };
 
   const onSubmit = useCallback(() => {
     if (!emailValid) {
@@ -137,12 +152,12 @@ export default function LoginScreen() {
       setErrorMsg('비밀번호를 입력해주세요.');
       return;
     }
-    requestLogin();
-  }, [emailValid, password, requestLogin]);
+    handleLogin();
+  }, [emailValid, password]);
 
   const onRetry = useCallback(() => {
-    if (lastTriedId) requestLogin();
-  }, [lastTriedId, requestLogin]);
+    if (lastTriedId) handleLogin();
+  }, [lastTriedId]);
 
   const onGoogle = () => Alert.alert('안내','Google 로그인은 데모에서 비활성화되었습니다.');
   const onApple = () => Alert.alert('안내','Apple 로그인은 데모에서 비활성화되었습니다.');
@@ -223,9 +238,11 @@ export default function LoginScreen() {
         {errorMsg && (
           <View style={{ marginTop: 8 }}>
             <Text style={styles.helpError}>{errorMsg}</Text>
-            <TouchableOpacity onPress={onRetry} disabled={loading}>
-              <Text style={[styles.smallLinkText, { textAlign: 'right', marginTop: 4 }]}>재시도</Text>
-            </TouchableOpacity>
+            {errorMsg.includes('네트워크') && (
+              <TouchableOpacity onPress={onRetry} disabled={loading}>
+                <Text style={[styles.smallLinkText, { textAlign: 'right', marginTop: 4 }]}>재시도</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 

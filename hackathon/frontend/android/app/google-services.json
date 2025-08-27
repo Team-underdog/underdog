@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "750048563323",
+    "project_id": "underdog-campus-chronicle",
+    "storage_bucket": "underdog-campus-chroniclasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:750048563323:android:1f6ec293a3af2bd40d92de",
+        "android_client_info": {
+          "package_name": "com.underdog.campuschronicle"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "750048563323-abcdefghijklmnopqrstuvwxyz123456.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBdybaUYTfJIflv9MlXlPUBVPyHJULBrCo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "750048563323-abcdefghijklmnopqrstuvwxyz123456.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

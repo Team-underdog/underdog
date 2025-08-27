@@ -35,7 +35,7 @@ class University(SQLModel, table=True):
     
     # 관계
     departments: List["Department"] = Relationship(back_populates="university")
-    courses: List["Course"] = Relationship(back_populates="university")
+    courses: List["UniversityCourse"] = Relationship(back_populates="university")
 
 
 class Department(SQLModel, table=True):
@@ -57,7 +57,7 @@ class Department(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     
     # 관계
-    courses: List["Course"] = Relationship(back_populates="department")
+    courses: List["UniversityCourse"] = Relationship(back_populates="department")
 
 
 class CourseType(str, Enum):
@@ -68,7 +68,7 @@ class CourseType(str, Enum):
     TEACHING = "교직"               # 교직과목
 
 
-class Course(SQLModel, table=True):
+class UniversityCourse(SQLModel, table=True):
     """강좌 정보 모델"""
     id: Optional[int] = Field(default=None, primary_key=True)
     
@@ -110,7 +110,7 @@ class CourseSchedule(SQLModel, table=True):
     """강좌 시간표 모델 (요일별 시간)"""
     id: Optional[int] = Field(default=None, primary_key=True)
     
-    course_id: int = Field(foreign_key="course.id")
+    course_id: int = Field(foreign_key="universitycourse.id")
     
     # 시간 정보
     day_of_week: int = Field(description="요일 (0:월, 1:화, 2:수, 3:목, 4:금, 5:토, 6:일)")

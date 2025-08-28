@@ -219,14 +219,7 @@ class FinancialService {
   async getSSAFYBankCodes(): Promise<any[]> {
     // SSAFY API 연동 전까지는 목업 데이터 반환
     return [
-      { code: "001", name: "한국은행" },
-      { code: "002", name: "산업은행" },
-      { code: "003", name: "기업은행" },
-      { code: "004", name: "국민은행" },
-      { code: "005", name: "하나은행" },
       { code: "006", name: "신한은행" },
-      { code: "007", name: "우리은행" },
-      { code: "008", name: "농협은행" },
     ];
   }
 

@@ -1,0 +1,128 @@
+{
+  "version": "1.0",
+  "lastUpdated": "2025-08-27T13:00:00.000Z",
+  "totalQuestions": 145,
+  "hollandDatabase": {
+    "R": [
+      {
+        "id": "Q1",
+        "originalText": "고장 난 물건을 직접 수리하기",
+        "type": "R",
+        "confidence": 0.9,
+        "matchedKeywords": ["고장", "수리", "물건"],
+        "category": "기술",
+        "weight": 1.0
+      },
+      {
+        "id": "Q2",
+        "originalText": "기계나 도구를 조작하기",
+        "type": "R",
+        "confidence": 0.8,
+        "matchedKeywords": ["기계", "도구", "조작"],
+        "category": "기술",
+        "weight": 1.0
+      }
+    ],
+    "I": [
+      {
+        "id": "Q3",
+        "originalText": "데이터를 분석하고 패턴 찾기",
+        "type": "I",
+        "confidence": 0.9,
+        "matchedKeywords": ["데이터", "분석", "패턴"],
+        "category": "연구",
+        "weight": 1.0
+      },
+      {
+        "id": "Q4",
+        "originalText": "문제를 논리적으로 해결하기",
+        "type": "I",
+        "confidence": 0.8,
+        "matchedKeywords": ["문제", "논리", "해결"],
+        "category": "연구",
+        "weight": 1.0
+      }
+    ],
+    "A": [
+      {
+        "id": "Q5",
+        "originalText": "창의적인 아이디어를 표현하기",
+        "type": "A",
+        "confidence": 0.9,
+        "matchedKeywords": ["창의", "아이디어", "표현"],
+        "category": "예술",
+        "weight": 1.0
+      }
+    ],
+    "S": [
+      {
+        "id": "Q6",
+        "originalText": "다른 사람을 가르치거나 도와주기",
+        "type": "S",
+        "confidence": 0.9,
+        "matchedKeywords": ["가르치기", "도와주기", "사람"],
+        "category": "교육",
+        "weight": 1.0
+      }
+    ],
+    "E": [
+      {
+        "id": "Q7",
+        "originalText": "팀을 이끌고 프로젝트 진행하기",
+        "type": "E",
+        "confidence": 0.9,
+        "matchedKeywords": ["팀", "이끌기", "프로젝트"],
+        "category": "경영",
+        "weight": 1.0
+      }
+    ],
+    "C": [
+      {
+        "id": "Q8",
+        "originalText": "체계적으로 자료를 정리하고 관리하기",
+        "type": "C",
+        "confidence": 0.9,
+        "matchedKeywords": ["체계", "정리", "관리"],
+        "category": "관리",
+        "weight": 1.0
+      }
+    ]
+  },
+  "metadata": {
+    "source": "career.go.kr",
+    "testType": "직업흥미검사(H)",
+    "testNumber": 33,
+    "keywords": {
+      "R": {
+        "keywords": ["수리", "고장", "기계", "도구", "건설", "제작", "기술", "물건", "조작", "설치"],
+        "description": "구체적이고 체계적인 작업을 선호하는 유형",
+        "skills": ["실행", "제작", "기술", "기계조작", "건설", "수리", "설치", "운영"]
+      },
+      "I": {
+        "keywords": ["분석", "연구", "문제", "논리", "실험", "탐구", "가설", "검증", "과학", "수학"],
+        "description": "논리적이고 분석적인 작업을 선호하는 유형",
+        "skills": ["문제해결", "분석", "연구", "논리적사고", "창의적사고", "실험", "탐구"]
+      },
+      "A": {
+        "keywords": ["창작", "디자인", "표현", "혁신", "예술", "창의", "자유", "상상", "감성"],
+        "description": "자유롭고 창의적인 표현을 선호하는 유형",
+        "skills": ["창작", "디자인", "표현", "혁신", "예술적감각", "상상력", "창의력"]
+      },
+      "S": {
+        "keywords": ["가르치기", "교육", "상담", "협력", "소통", "도움", "사람", "팀", "지원"],
+        "description": "사람들과의 상호작용을 선호하는 유형",
+        "skills": ["소통", "교육", "상담", "협력", "공감", "지원", "치료", "봉사"]
+      },
+      "E": {
+        "keywords": ["이끌기", "리더", "팀", "계획", "설득", "프로젝트", "사업", "목표", "성과"],
+        "description": "리더십과 설득을 통한 성과 달성을 선호하는 유형",
+        "skills": ["리더십", "설득", "계획", "조직", "의사결정", "경영", "관리", "마케팅"]
+      },
+      "C": {
+        "keywords": ["정리", "계산", "기록", "검토", "품질", "정확", "체계", "관리", "감독"],
+        "description": "정확하고 체계적인 업무 처리를 선호하는 유형",
+        "skills": ["정리", "계산", "기록", "검토", "품질관리", "체계화", "표준화", "관리"]
+      }
+    }
+  }
+}

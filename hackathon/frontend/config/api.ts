@@ -1,7 +1,7 @@
 // 백엔드 API 서비스 설정
 // 모바일 앱에서 접근할 수 있도록 로컬 네트워크 IP 사용
 // 개발 환경에서는 컴퓨터의 로컬 IP 주소를 사용해야 함
-const API_BASE_URL = 'http://172.20.10.8:8000'; // 실제 로컬 IP
+const API_BASE_URL = 'http://172.20.10.8:8000'; // 현재 로컬 IP
 
 // API 엔드포인트
 export const API_ENDPOINTS = {
@@ -47,12 +47,6 @@ export const API_ENDPOINTS = {
   CHRONICLE: {
     POSTS: `${API_BASE_URL}/api/chronicle/posts`,
     USER_POSTS: `${API_BASE_URL}/api/chronicle/posts`,
-  },
-  // 금융
-  FINANCIAL: {
-    SUMMARY: `${API_BASE_URL}/api/financial/summary`,
-    TRANSACTIONS: `${API_BASE_URL}/api/financial/transactions`,
-    CREDO_SCORE: `${API_BASE_URL}/api/financial/credo-score`,
   }
 };
 

@@ -12,7 +12,9 @@ import { Checkbox } from './ui/Checkbox';
 import { ProgressIndicator } from './ProgressIndicator';
 import { SocialLogin } from './SocialLogin';
 
-const apiBaseUrl: string = (Constants.expoConfig?.extra as any)?.apiBaseUrl || 'http://192.168.219.108:8000';
+import { API_ENDPOINTS } from '../config/api';
+
+const apiBaseUrl: string = API_ENDPOINTS.AUTH.LOGIN.replace('/api/auth/login', '');
 
 interface FormData {
   email: string;

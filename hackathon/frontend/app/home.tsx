@@ -7,17 +7,20 @@ import {
   TouchableOpacity,
   SafeAreaView,
   Alert,
+  Image,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import { PixelCharacter } from '../components/PixelCharacter';
-import { SkillGauge } from '../components/SkillGauge';
 import { CampusCredoBottomNav } from '../components/CampusCredoBottomNav';
+import CharacterGrowth from '../components/CharacterGrowth';
+import { CharacterSelection } from '../components/CharacterSelection';
 import { getCurrentUser, signOutUser } from '../services/authService';
 import { financialService, type FinancialSummary } from '../services/financialService';
+import xpService, { type XPData } from '../services/xpService';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import { LinearGradient } from 'expo-linear-gradient';
 
 interface UserData {
   id: number;
@@ -32,89 +35,29 @@ interface UserData {
   profile_image?: string;
 }
 
-interface QuestData {
-  id: number;
-  title: string;
-  description: string;
-  category: string;
-  reward: {
-    credo: number;
-    xp: number;
-  };
-  difficulty: 'easy' | 'medium' | 'hard';
-  isCompleted?: boolean;
-}
-
 export default function CampusCredoHome() {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [financialData, setFinancialData] = useState<FinancialSummary | null>(null);
   const [credoScore, setCredoScore] = useState(850);
-
-  // Mock data - 실제로는 API에서 가져올 데이터
-  const mockUserStats = {
-    credoScore: 1247,
-    level: 5,
-    nextLevelCredoRequired: 1500,
-    skills: [
-      { 
-        name: '학업', 
-        level: 7, 
-        maxLevel: 10, 
-        experience: 75, 
-        color: 'bg-blue-500' 
-      },
-      { 
-        name: '재무관리', 
-        level: 4, 
-        maxLevel: 10, 
-        experience: 40, 
-        color: 'bg-green-500' 
-      },
-      { 
-        name: '자기계발', 
-        level: 3, 
-        maxLevel: 10, 
-        experience: 60, 
-        color: 'bg-purple-500' 
-      },
-      { 
-        name: '대외활동', 
-        level: 2, 
-        maxLevel: 10, 
-        experience: 30, 
-        color: 'bg-yellow-500' 
-      },
-    ],
-    todayActivities: [
-      { activity: '데이터베이스 수업 출석', credo: 10, time: '09:10' },
-      { activity: '도서관 이용', credo: 5, time: '14:30' },
-      { activity: '카페 결제', credo: 2, time: '16:45' },
-    ]
-  };
-
-  const recommendedQuests: QuestData[] = [
-    {
-      id: 1,
-      title: '백준 알고리즘 문제 3개 풀기',
-      description: '코딩 실력 향상으로 학업 스킬을 성장시키세요',
-      category: '학업',
-      difficulty: 'medium',
-      reward: { credo: 50, xp: 100 }
-    },
-    {
-      id: 2,
-      title: '이번 달 지출 50만원 이하 관리',
-      description: '건전한 소비 습관으로 재무 관리 스킬을 키워보세요',
-      category: '재무관리',
-      difficulty: 'hard',
-      reward: { credo: 75, xp: 150 }
-    }
-  ];
+  const [xpData, setXpData] = useState<XPData>({
+    currentXP: 0,
+    currentLevel: 1,
+    nextLevelXP: 100,
+    totalXP: 0,
+    credoScore: 0
+  });
+  const [showCharacterSelection, setShowCharacterSelection] = useState(false);
 
   useEffect(() => {
     loadUserProfile();
   }, []);
+
+  useEffect(() => {
+    if (userData?.id) {
+      loadXPData();
+    }
+  }, [userData]);
 
   const loadUserProfile = async () => {
     try {
@@ -171,7 +114,8 @@ export default function CampusCredoHome() {
       setFinancialData(summary);
       
       // 금융 데이터를 기반으로 크레도 점수 계산
-      const calculatedScore = financialService.calculateCredoScore(summary);
+      const transactions = summary?.recent_transactions || [];
+      const calculatedScore = financialService.calculateCredoScore(transactions);
       setCredoScore(calculatedScore);
       
       console.log('✅ 금융 데이터 로딩 완료:', summary);
@@ -182,6 +126,25 @@ export default function CampusCredoHome() {
     }
   };
 
+  const loadXPData = async () => {
+    try {
+      console.log('🎮 XP 데이터 로딩 시작');
+      if (userData?.id) {
+        const xpData = await xpService.fetchXPData(userData.id.toString());
+        setXpData(xpData);
+        console.log('✅ XP 데이터 로딩 완료:', xpData);
+      }
+    } catch (error) {
+      console.error('❌ XP 데이터 로딩 실패:', error);
+      // 기본값 유지
+    }
+  };
+
+  const handleCharacterSelect = (level: number) => {
+    console.log('🎭 캐릭터 선택:', level);
+    // 선택된 캐릭터 레벨 저장
+  };
+
   const handleLogout = async () => {
     try {
       await SecureStore.deleteItemAsync('authToken');
@@ -189,35 +152,6 @@ export default function CampusCredoHome() {
       router.replace('/login');
     } catch (error) {
       Alert.alert('오류', '로그아웃 중 문제가 발생했습니다.');
-    }
-  };
-
-  const handleQuestStart = (quest: QuestData) => {
-    Alert.alert(
-      '퀘스트 시작',
-      `"${quest.title}" 퀘스트를 시작하시겠습니까?\n\n보상: ${quest.reward.credo} Credo, ${quest.reward.xp} XP`,
-      [
-        { text: '취소', style: 'cancel' },
-        { text: '시작', onPress: () => console.log('퀘스트 시작:', quest.id) }
-      ]
-    );
-  };
-
-  const getDifficultyColor = (difficulty: string) => {
-    switch (difficulty) {
-      case 'easy': return '#10B981';
-      case 'medium': return '#F59E0B';
-      case 'hard': return '#EF4444';
-      default: return '#6B7280';
-    }
-  };
-
-  const getDifficultyText = (difficulty: string) => {
-    switch (difficulty) {
-      case 'easy': return '쉬움';
-      case 'medium': return '보통';
-      case 'hard': return '어려움';
-      default: return '보통';
     }
   };
 
@@ -235,209 +169,240 @@ export default function CampusCredoHome() {
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* 헤더 */}
-        <Animated.View entering={FadeInUp.delay(100)} style={styles.header}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.greeting}>
-              안녕하세요, {userData?.display_name || '캠퍼스 크로니클러'}님!
-            </Text>
-            <Text style={styles.subGreeting}>오늘도 성장하는 하루 되세요</Text>
-          </View>
-          <View style={styles.credoScore}>
-            <Feather name="zap" size={16} color="white" />
-            <Text style={styles.credoText}>{credoScore.toLocaleString()}</Text>
-          </View>
-          <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-            <Feather name="log-out" size={20} color="#6B7280" />
-          </TouchableOpacity>
-        </Animated.View>
-
-        {/* 캐릭터 영역 */}
-        <Animated.View entering={FadeInDown.delay(200)} style={styles.characterSection}>
-          <View style={styles.characterContainer}>
-            <PixelCharacter 
-              level={financialData ? Math.floor(credoScore / 200) + 1 : mockUserStats.level} 
-              credoScore={credoScore} 
-            />
-            <Text style={styles.characterTitle}>
-              레벨 {mockUserStats.level} 캠퍼스 크로니클러
-            </Text>
-            <Text style={styles.characterSubtitle}>
-              다음 레벨까지 {mockUserStats.nextLevelCredoRequired - mockUserStats.credoScore} Credo 남음
-            </Text>
-          </View>
-        </Animated.View>
-
-        {/* 오늘의 활동 요약 */}
-        <Animated.View entering={FadeInDown.delay(300)} style={styles.todaySection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>오늘의 활동</Text>
-            <Feather name="activity" size={20} color="#8B5CF6" />
-          </View>
-          <View style={styles.activityList}>
-            {mockUserStats.todayActivities.map((activity, index) => (
-              <View key={index} style={styles.activityItem}>
-                <View style={styles.activityInfo}>
-                  <Text style={styles.activityName}>{activity.activity}</Text>
-                  <Text style={styles.activityTime}>{activity.time}</Text>
-                </View>
-                <View style={styles.activityReward}>
-                  <Feather name="zap" size={12} color="#F59E0B" />
-                  <Text style={styles.activityCredo}>+{activity.credo}</Text>
-                </View>
-              </View>
-            ))}
-          </View>
-        </Animated.View>
-
-        {/* 금융 요약 정보 */}
-        {financialData ? (
-          <Animated.View entering={FadeInDown.delay(300)} style={styles.financialSection}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>💰 내 금융 현황</Text>
-              <Feather name="credit-card" size={20} color="#10B981" />
+          {/* 헤더 */}
+          <Animated.View entering={FadeInUp.delay(100)} style={styles.header}>
+            <View style={styles.headerLeft}>
+              <Text style={styles.greeting}>
+                안녕하세요, {userData?.display_name || '캠퍼스 크로니클러'}님!
+              </Text>
+              <Text style={styles.subGreeting}>오늘도 성장하는 하루 되세요</Text>
             </View>
-            <View style={styles.financialContainer}>
-              <View style={styles.balanceCard}>
-                <Text style={styles.balanceLabel}>총 잔액</Text>
-                <Text style={styles.balanceAmount}>
-                  {financialData.total_balance?.toLocaleString() || '0'}원
-                </Text>
-                <Text style={styles.accountInfo}>
-                  {financialData.accounts?.[0]?.bank_name || 'N/A'} · {financialData.accounts?.[0]?.account_name || 'N/A'}
-                </Text>
-              </View>
-              
-              <View style={styles.financialStats}>
-                <View style={styles.statItem}>
-                  <Text style={styles.statLabel}>이번 달 수입</Text>
-                  <Text style={styles.statValue}>
-                    +{financialData.monthly_income?.toLocaleString() || '0'}원
-                  </Text>
-                </View>
-                <View style={styles.statItem}>
-                  <Text style={styles.statLabel}>이번 달 지출</Text>
-                  <Text style={[styles.statValue, { color: '#EF4444' }]}>
-                    -{financialData.monthly_spending?.toLocaleString() || '0'}원
-                  </Text>
-                </View>
-                <View style={styles.statItem}>
-                  <Text style={styles.statLabel}>신용등급</Text>
-                  <Text style={styles.statValue}>{financialData.credit_grade || 'N/A'}</Text>
-                </View>
-              </View>
+            <View style={styles.credoScore}>
+              <Feather name="zap" size={16} color="white" />
+              <Text style={styles.credoText}>{credoScore.toLocaleString()}</Text>
             </View>
-          </Animated.View>
-        ) : (
-          <Animated.View entering={FadeInDown.delay(300)} style={styles.financialSection}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>💰 내 금융 현황</Text>
-              <Feather name="credit-card" size={20} color="#10B981" />
-            </View>
-            <View style={styles.financialContainer}>
-              <View style={styles.balanceCard}>
-                <Text style={styles.balanceLabel}>총 잔액</Text>
-                <Text style={styles.balanceAmount}>로딩 중...</Text>
-                <Text style={styles.accountInfo}>계정 정보 로딩 중...</Text>
-              </View>
-              
-              <View style={styles.financialStats}>
-                <View style={styles.statItem}>
-                  <Text style={styles.statLabel}>이번 달 수입</Text>
-                  <Text style={styles.statValue}>로딩 중...</Text>
-                </View>
-                <View style={styles.statItem}>
-                  <Text style={styles.statLabel}>이번 달 지출</Text>
-                  <Text style={[styles.statValue, { color: '#EF4444' }]}>로딩 중...</Text>
-                </View>
-                <View style={styles.statItem}>
-                  <Text style={styles.statLabel}>신용등급</Text>
-                  <Text style={styles.statValue}>로딩 중...</Text>
-                </View>
-              </View>
-            </View>
-          </Animated.View>
-        )}
-
-        {/* 스킬 현황 */}
-        <Animated.View entering={FadeInDown.delay(400)} style={styles.skillSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>나의 성장 현황</Text>
-            <Feather name="trending-up" size={20} color="#10B981" />
-          </View>
-          <View style={styles.skillList}>
-            {mockUserStats.skills.map((skill, index) => (
-              <SkillGauge key={skill.name} skill={skill} delay={index} />
-            ))}
-          </View>
-        </Animated.View>
-
-        {/* 추천 퀘스트 */}
-        <Animated.View entering={FadeInDown.delay(500)} style={styles.questSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>추천 퀘스트</Text>
-            <TouchableOpacity style={styles.moreButton}>
-              <Text style={styles.moreText}>더보기</Text>
-              <Feather name="arrow-right" size={14} color="#3B82F6" />
+            <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
+              <Feather name="log-out" size={20} color="#6B7280" />
             </TouchableOpacity>
-          </View>
-          
-          <View style={styles.questList}>
-            {recommendedQuests.map((quest) => (
-              <TouchableOpacity 
-                key={quest.id} 
-                style={styles.questCard}
-                onPress={() => handleQuestStart(quest)}
-              >
-                <View style={styles.questHeader}>
-                  <View style={styles.questCategory}>
-                    <Feather 
-                      name={quest.category === '학업' ? 'book-open' : 'credit-card'} 
-                      size={14} 
-                      color={quest.category === '학업' ? '#3B82F6' : '#10B981'} 
-                    />
-                    <Text style={styles.questCategoryText}>{quest.category}</Text>
-                  </View>
-                  <View 
-                    style={[
-                      styles.difficultyBadge, 
-                      { backgroundColor: getDifficultyColor(quest.difficulty) }
-                    ]}
-                  >
-                    <Text style={styles.difficultyText}>
-                      {getDifficultyText(quest.difficulty)}
-                    </Text>
-                  </View>
-                </View>
-                
-                <Text style={styles.questTitle}>{quest.title}</Text>
-                <Text style={styles.questDescription}>{quest.description}</Text>
-                
-                <View style={styles.questRewards}>
-                  <View style={styles.rewardItem}>
-                    <Feather name="zap" size={12} color="#F59E0B" />
-                    <Text style={styles.rewardText}>+{quest.reward.credo} Credo</Text>
-                  </View>
-                  <View style={styles.rewardItem}>
-                    <Feather name="star" size={12} color="#8B5CF6" />
-                    <Text style={styles.rewardText}>+{quest.reward.xp} XP</Text>
-                  </View>
-                </View>
-                
-                <View style={styles.questAction}>
-                  <Text style={styles.startButtonText}>시작하기</Text>
-                  <Feather name="play" size={16} color="white" />
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </Animated.View>
+          </Animated.View>
 
-        {/* 하단 패딩 */}
-        <View style={{ height: 100 }} />
+          {/* 상단 위젯들 - 좌우 분할 레이아웃 */}
+          <View style={styles.topRowContainer}>
+                      {/* 1. 캐릭터 상태 위젯 */}
+            <Animated.View entering={FadeInDown.delay(200)} style={styles.characterContainer}>
+              <CharacterGrowth userId={userData?.id?.toString() || '1'} />
+            </Animated.View>
+
+            
+          </View>
+
+          {/* 3. 학사 알림 서비스 위젯 */}
+          <Animated.View entering={FadeInDown.delay(400)} style={styles.academicWidget}>
+            <View style={styles.widgetHeader}>
+              <View style={styles.titleContainer}>
+                <Text style={styles.widgetTitle}>📚 학사 알림</Text>
+                <Text style={styles.widgetSubtitle}>오늘의 일정</Text>
+              </View>
+              <TouchableOpacity style={styles.moreButton}>
+                <Text style={styles.moreText}>더보기</Text>
+                <Feather name="chevron-right" size={16} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.academicContent}>
+              <View style={styles.todaySchedule}>
+                <Text style={styles.scheduleTitle}>오늘 수업</Text>
+                <View style={styles.scheduleList}>
+                  <View style={styles.scheduleItem}>
+                    <View style={styles.scheduleTime}>
+                      <Text style={styles.timeText}>09:00</Text>
+                      <Text style={styles.durationText}>90분</Text>
+                    </View>
+                    <View style={styles.scheduleInfo}>
+                      <Text style={styles.courseName}>웹 프로그래밍</Text>
+                      <Text style={styles.courseLocation}>A동 301호</Text>
+                    </View>
+                    <View style={styles.scheduleStatus}>
+                      <Feather name="check-circle" size={16} color="#10B981" />
+                    </View>
+                  </View>
+                  <View style={styles.scheduleItem}>
+                    <View style={styles.scheduleTime}>
+                      <Text style={styles.timeText}>14:00</Text>
+                      <Text style={styles.durationText}>90분</Text>
+                    </View>
+                    <View style={styles.scheduleInfo}>
+                      <Text style={styles.courseName}>데이터베이스</Text>
+                      <Text style={styles.courseLocation}>B동 205호</Text>
+                    </View>
+                    <View style={styles.scheduleStatus}>
+                      <Feather name="clock" size={16} color="#F59E0B" />
+                    </View>
+                  </View>
+                </View>
+              </View>
+              <View style={styles.assignmentReminder}>
+                <Text style={styles.assignmentTitle}>제출 마감</Text>
+                <View style={styles.assignmentList}>
+                  <View style={styles.assignmentItem}>
+                    <View style={styles.assignmentIcon}>
+                      <Feather name="file-text" size={14} color="#EF4444" />
+                    </View>
+                    <Text style={styles.assignmentName}>웹프로젝트 기획서</Text>
+                    <Text style={styles.assignmentDeadline}>D-2</Text>
+                  </View>
+                  <View style={styles.assignmentItem}>
+                    <View style={styles.assignmentIcon}>
+                      <Feather name="file-text" size={14} color="#F59E0B" />
+                    </View>
+                    <Text style={styles.assignmentName}>DB 설계 보고서</Text>
+                    <Text style={styles.assignmentDeadline}>D-5</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </Animated.View>
+
+          {/* 4. 금융정보 위젯 - 신한은행 앱 스타일 */}
+          <Animated.View entering={FadeInDown.delay(500)} style={styles.financialWidget}>
+            <View style={styles.widgetHeader}>
+              <View style={styles.titleContainer}>
+                <Text style={styles.widgetTitle}>💰 내 계좌</Text>
+                <Text style={styles.widgetSubtitle}>입출금 저축예금</Text>
+              </View>
+              <TouchableOpacity style={styles.moreButton}>
+                <Text style={styles.moreText}>전체보기</Text>
+                <Feather name="chevron-right" size={16} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.financialContent}>
+              {/* 계좌 정보 카드 */}
+              <View style={styles.accountCard}>
+                <View style={styles.accountHeader}>
+                  <View style={styles.bankLogoContainer}>
+                    <View style={styles.bankLogo}>
+                      <Image 
+                        source={require('../assets/images/shinhan.png')} 
+                        style={styles.bankLogoImage}
+                        resizeMode="contain"
+                      />
+                    </View>
+                  </View>
+                  <View style={styles.accountInfo}>
+                    <Text style={styles.accountType}>입출금 저축예금</Text>
+                    <View style={styles.accountNumberRow}>
+                      <Text style={styles.accountNumber}>
+                        {financialData?.accounts && financialData.accounts.length > 0 
+                          ? `${financialData.accounts[0].bank_name} ${financialData.accounts[0].account_number}`
+                          : '신한 110-373-218081'
+                        }
+                      </Text>
+                      <TouchableOpacity style={styles.copyButton}>
+                        <Feather name="copy" size={14} color="#6B7280" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  <TouchableOpacity style={styles.menuButton}>
+                    <Feather name="more-vertical" size={20} color="#6B7280" />
+                  </TouchableOpacity>
+                </View>
+                
+                {/* 잔액 및 액션 버튼 */}
+                <View style={styles.balanceSection}>
+                  <View style={styles.balanceRow}>
+                    <Text style={styles.balanceAmount}>
+                      {financialData?.total_balance ? 
+                        `${financialData.total_balance.toLocaleString()}원` : 
+                        '로딩 중...'
+                      }
+                    </Text>
+                    <TouchableOpacity style={styles.refreshButton}>
+                      <Feather name="refresh-cw" size={20} color="#6B7280" />
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.actionButtons}>
+                    <TouchableOpacity style={styles.transferButton}>
+                      <Text style={styles.transferButtonText}>이체</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.salaryClubButton}>
+                      <Text style={styles.salaryClubButtonText}>급여클럽+</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+
+              {/* 최근 거래/연락처 목록 */}
+              <View style={styles.recentContacts}>
+                <Text style={styles.contactsTitle}>최근 거래</Text>
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.contactsList}
+                >
+                  {financialData?.recent_transactions && financialData.recent_transactions.length > 0 ? (
+                    financialData.recent_transactions.slice(0, 4).map((transaction, index) => (
+                      <View key={index} style={styles.contactCard}>
+                        <View style={[styles.contactIcon, { 
+                          backgroundColor: index % 2 === 0 ? '#3B82F6' : '#8B5CF6' 
+                        }]}>
+                          <Text style={styles.contactIconText}>
+                            {transaction.transaction_type === 'income' ? '💰' : '💸'}
+                          </Text>
+                        </View>
+                        <Text style={styles.contactName}>
+                          {transaction.description || `거래${index + 1}`}
+                        </Text>
+                        <Text style={[
+                          styles.contactAmount,
+                          { color: transaction.transaction_type === 'income' ? '#10B981' : '#EF4444' }
+                        ]}>
+                          {transaction.transaction_type === 'income' ? '+' : '-'}
+                          {transaction.amount?.toLocaleString() || '0'}
+                        </Text>
+                      </View>
+                    ))
+                  ) : (
+                    // 거래내역이 없을 때 기본 표시
+                    <>
+                      <View style={styles.contactCard}>
+                        <View style={[styles.contactIcon, { backgroundColor: '#3B82F6' }]}>
+                          <Text style={styles.contactIconText}>🏦</Text>
+                        </View>
+                        <Text style={styles.contactName}>거래내역 없음</Text>
+                        <Text style={styles.contactAmount}>-</Text>
+                      </View>
+                      <View style={styles.contactCard}>
+                        <View style={[styles.contactIcon, { backgroundColor: '#8B5CF6' }]}>
+                          <Text style={styles.contactIconText}>📱</Text>
+                        </View>
+                        <Text style={styles.contactName}>첫 거래를</Text>
+                        <Text style={styles.contactAmount}>시작하세요</Text>
+                      </View>
+                    </>
+                  )}
+                </ScrollView>
+                
+                {/* 페이지 인디케이터 */}
+                <View style={styles.pageIndicator}>
+                  <View style={[styles.pageDot, styles.pageDotActive]} />
+                  <View style={styles.pageDot} />
+                </View>
+              </View>
+            </View>
+          </Animated.View>
+
+          {/* 하단 여백 */}
+          <View style={styles.bottomSpacing} />
         </ScrollView>
       </View>
-      
+
+      {/* 캐릭터 선택 모달 */}
+      <CharacterSelection
+        visible={showCharacterSelection}
+        onClose={() => setShowCharacterSelection(false)}
+        onCharacterSelect={handleCharacterSelect}
+        currentLevel={xpData.currentLevel}
+      />
+
       {/* 하단 네비게이션 */}
       <CampusCredoBottomNav />
     </SafeAreaView>
@@ -499,44 +464,305 @@ const styles = StyleSheet.create({
   logoutButton: {
     padding: 8,
   },
-  characterSection: {
-    backgroundColor: 'white',
-    marginHorizontal: 20,
-    marginTop: 20,
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
+  // 위젯 공통 스타일 - 신한 SOL 앱 스타일
+  characterWidget: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 8,
-    elevation: 3,
+    elevation: 4,
+    minHeight: 350,
+    padding: 16,
   },
-  characterContainer: {
+  credoWidget: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+    minHeight: 80,
+    padding: 12,
+    marginBottom: 8,
+    flex: 0.7,
+    marginHorizontal: 16,
+  },
+  academicWidget: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+    padding: 20,
+  },
+  financialWidget: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+    padding: 20,
+  },
+  widgetHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
   },
-  characterTitle: {
+  titleContainer: {
+    flex: 1,
+  },
+  widgetTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 2,
+  },
+  widgetSubtitle: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontWeight: '400',
+  },
+  settingsButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#F9FAFB',
+  },
+  benefitsButton: {
+    backgroundColor: '#F3F4F6',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    gap: 6,
+  },
+  benefitsButtonText: {
+    color: '#374151',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  credoContent: {
+    gap: 16,
+  },
+  credoScoreDisplay: {
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 12,
+  },
+  credoScoreLabel: {
+    fontSize: 12,
+    color: '#92400E',
+    marginBottom: 4,
+  },
+  credoScoreValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#92400E',
+  },
+  credoScoreUnit: {
+    fontSize: 12,
+    color: '#92400E',
+    marginTop: 2,
+  },
+  credoInfo: {
+    gap: 12,
+  },
+  credoInfoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 8,
+  },
+  credoInfoText: {
+    fontSize: 14,
+    color: '#374151',
+  },
+  academicContent: {
+    gap: 20,
+  },
+  todaySchedule: {
+    gap: 12,
+  },
+  scheduleTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 8,
+  },
+  scheduleList: {
+    gap: 12,
+  },
+  scheduleItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    gap: 12,
+  },
+  scheduleTime: {
+    alignItems: 'center',
+    minWidth: 60,
+  },
+  timeText: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#1F2937',
-    marginTop: 16,
   },
-  characterSubtitle: {
+  durationText: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  scheduleInfo: {
+    flex: 1,
+  },
+  courseName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  courseLocation: {
     fontSize: 14,
     color: '#6B7280',
-    marginTop: 4,
   },
-  todaySection: {
-    backgroundColor: 'white',
-    marginHorizontal: 20,
-    marginTop: 20,
+  scheduleStatus: {
+    padding: 8,
+  },
+  assignmentReminder: {
+    gap: 12,
+  },
+  assignmentTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 8,
+  },
+  assignmentList: {
+    gap: 8,
+  },
+  assignmentItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#FEF2F2',
+    borderRadius: 8,
+    gap: 8,
+  },
+  assignmentName: {
+    flex: 1,
+    fontSize: 14,
+    color: '#374151',
+  },
+  assignmentDeadline: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#EF4444',
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  financialContent: {
+    gap: 20,
+  },
+  balanceCard: {
+    backgroundColor: '#F0F9FF',
     borderRadius: 16,
     padding: 20,
+    alignItems: 'center',
+  },
+  balanceLabel: {
+    fontSize: 14,
+    color: '#0369A1',
+    marginBottom: 8,
+  },
+
+  balanceChange: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  balanceChangeText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  recentTransactions: {
+    gap: 12,
+  },
+  transactionsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 8,
+  },
+  transactionList: {
+    gap: 8,
+  },
+  transactionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    gap: 12,
+  },
+  transactionIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  transactionInfo: {
+    flex: 1,
+  },
+  transactionName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 2,
+  },
+  transactionTime: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  transactionAmount: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#EF4444',
+  },
+  characterContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 8,
-    elevation: 3,
+    elevation: 4,
+    minHeight: 400,
+    padding: 20,
+    marginTop: 16,
   },
   skillSection: {
     backgroundColor: 'white',
@@ -551,6 +777,30 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   questSection: {
+    backgroundColor: 'white',
+    marginHorizontal: 20,
+    marginTop: 20,
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  aiSection: {
+    backgroundColor: 'white',
+    marginHorizontal: 20,
+    marginTop: 20,
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  apiSection: {
     backgroundColor: 'white',
     marginHorizontal: 20,
     marginTop: 20,
@@ -623,140 +873,313 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 3,
+    },
+
+  bottomSpacing: {
+    height: 100,
   },
-  financialContainer: {
+  topRowContainer: {
+    marginHorizontal: 16,
+    marginTop: 16,
+  },
+  rightColumnContainer: {
+    flex: 1,
+    gap: 8,
+    marginLeft: 8,
+  },
+  credoRowContainer: {
+    marginHorizontal: 16,
+    marginTop: 16,
     gap: 16,
   },
-  balanceCard: {
+  creditGradeWidget: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+    padding: 12,
+    flex: 1,
+    marginRight: 4,
+    minHeight: 100,
+    marginHorizontal: 16,
+  },
+  creditGradeContent: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 4,
+  },
+  creditGradeValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#0369A1',
+  },
+  creditGradeScore: {
+    fontSize: 12,
+    color: '#0369A1',
+  },
+  gpaWidget: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+    padding: 12,
+    flex: 1,
+    marginLeft: 4,
+    minHeight: 100,
+    marginHorizontal: 16,
+  },
+  gpaContent: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 4,
+  },
+  gpaValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#92400E',
+  },
+  gpaUnit: {
+    fontSize: 12,
+    color: '#92400E',
+  },
+  benefitsWidget: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+    padding: 12,
+    minHeight: 120,
+    marginHorizontal: 16,
+    marginTop: 16,
+  },
+  benefitsContent: {
+    gap: 12,
+  },
+  infoRowContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 12,
+  },
+
+  moreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: '#F9FAFB',
+  },
+  moreText: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginRight: 4,
+    fontWeight: '500',
+  },
+  scoreIconContainer: {
+    backgroundColor: '#FFD700',
+    borderRadius: 12,
+    padding: 8,
+    marginBottom: 8,
+  },
+  infoIconContainer: {
+    backgroundColor: '#E5E7EB',
+    borderRadius: 12,
+    padding: 8,
+    marginBottom: 8,
+  },
+  infoItemIcon: {
+    backgroundColor: '#E5E7EB',
+    borderRadius: 12,
+    padding: 8,
+  },
+  assignmentIcon: {
+    backgroundColor: '#FEF2F2',
+    borderRadius: 8,
+    padding: 6,
+    marginRight: 8,
+  },
+  balanceIconContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 12,
+    alignSelf: 'center',
+  },
+  accountCard: {
     backgroundColor: '#F0F9FF',
     borderRadius: 16,
     padding: 20,
+    marginBottom: 16,
+  },
+  accountHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  bankLogoContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#E0F2FE',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  bankLogo: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#3B82F6',
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  balanceLabel: {
+  bankLogoImage: {
+    width: '100%',
+    height: '100%',
+  },
+  accountInfo: {
+    flex: 1,
+    marginRight: 10,
+  },
+  accountType: {
     fontSize: 14,
-    color: '#64748B',
-    marginBottom: 8,
+    color: '#374151',
+    marginBottom: 4,
+  },
+  accountNumberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  accountNumber: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginRight: 8,
+  },
+  copyButton: {
+    padding: 4,
+  },
+  menuButton: {
+    padding: 4,
+  },
+  balanceSection: {
+    marginTop: 16,
+  },
+  balanceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
   },
   balanceAmount: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#0F172A',
-    marginBottom: 4,
+    color: '#0369A1',
   },
-  accountInfo: {
-    fontSize: 12,
-    color: '#64748B',
+  refreshButton: {
+    padding: 8,
   },
-  financialStats: {
+  actionButtons: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
+    justifyContent: 'space-around',
+    marginTop: 12,
   },
-  statItem: {
+  transferButton: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#3B82F6',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     borderRadius: 12,
-    padding: 16,
     alignItems: 'center',
+    marginRight: 8,
   },
-  statLabel: {
-    fontSize: 12,
-    color: '#64748B',
-    marginBottom: 4,
+  transferButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
   },
-  statValue: {
+  salaryClubButton: {
+    flex: 1,
+    backgroundColor: '#F59E0B',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  salaryClubButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  recentContacts: {
+    marginTop: 16,
+  },
+  contactsTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#10B981',
+    color: '#1F2937',
+    marginBottom: 12,
   },
-  moreButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  contactsList: {
+    gap: 12,
   },
-  moreText: {
-    fontSize: 14,
-    color: '#3B82F6',
-    marginRight: 4,
-  },
-  questList: {
-    gap: 16,
-  },
-  questCard: {
-    backgroundColor: '#F9FAFB',
+  contactCard: {
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 16,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  questHeader: {
-    flexDirection: 'row',
+    width: 120,
     alignItems: 'center',
-    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  contactIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 8,
   },
-  questCategory: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'white',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+  contactIconText: {
+    fontSize: 20,
   },
-  questCategoryText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#374151',
-    marginLeft: 4,
-  },
-  difficultyBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-  },
-  difficultyText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: 'white',
-  },
-  questTitle: {
+  contactName: {
     fontSize: 14,
     fontWeight: '600',
     color: '#1F2937',
     marginBottom: 4,
   },
-  questDescription: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginBottom: 12,
+  contactAmount: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#EF4444',
   },
-  questRewards: {
+  pageIndicator: {
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: 12,
-  },
-  rewardItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  rewardText: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: '#374151',
-    marginLeft: 4,
-  },
-  questAction: {
-    flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#3B82F6',
-    paddingVertical: 8,
-    borderRadius: 8,
-    gap: 8,
+    marginTop: 16,
   },
-  startButtonText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
+  pageDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#E5E7EB',
+    marginHorizontal: 4,
+  },
+  pageDotActive: {
+    backgroundColor: '#3B82F6',
   },
 });

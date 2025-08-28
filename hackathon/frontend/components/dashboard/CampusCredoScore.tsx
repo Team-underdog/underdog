@@ -261,7 +261,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.5,
     shadowRadius: 4,
     elevation: 4,
-    transform: [{ rotate: '15deg' }],
+            transform: [{ rotate: '15deg' }],
   },
   
   pixelScoreText: {

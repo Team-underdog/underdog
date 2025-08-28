@@ -80,11 +80,11 @@ export const typography = {
   body: {
     fontFamily: 'System, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     fontSize: {
-      xs: '12px',
-      sm: '14px',
-      base: '16px',
-      lg: '18px',
-      xl: '20px',
+      xs: 12,
+      sm: 14,
+      base: 16,
+      lg: 18,
+      xl: 20,
     },
     fontWeight: {
       normal: '400',
@@ -93,9 +93,9 @@ export const typography = {
       bold: '700',
     },
     lineHeight: {
-      tight: '1.25',
-      normal: '1.5',
-      relaxed: '1.75',
+      tight: 1.25,
+      normal: 1.5,
+      relaxed: 1.75,
     },
   },
   
@@ -103,21 +103,21 @@ export const typography = {
   heading: {
     fontFamily: '"Press Start 2P", "Courier New", monospace',
     fontSize: {
-      xs: '14px',
-      sm: '16px',
-      base: '20px',
-      lg: '24px',
-      xl: '28px',
-      '2xl': '32px',
-      '3xl': '36px',
+      xs: 14,
+      sm: 16,
+      base: 20,
+      lg: 24,
+      xl: 28,
+      '2xl': 32,
+      '3xl': 36,
     },
     fontWeight: {
       normal: '400',
       bold: '700',
     },
     lineHeight: {
-      tight: '1.2',
-      normal: '1.3',
+      tight: 1.2,
+      normal: 1.3,
     },
   },
   
@@ -125,53 +125,53 @@ export const typography = {
   pixel: {
     fontFamily: '"Press Start 2P", "Courier New", monospace',
     fontSize: {
-      sm: '12px',
-      base: '16px',
-      lg: '20px',
-      xl: '24px',
-      '2xl': '32px',
+      sm: 12,
+      base: 16,
+      lg: 20,
+      xl: 24,
+      '2xl': 32,
     },
   }
 };
 
 export const spacing = {
-  xs: '4px',
-  sm: '8px',
-  md: '16px',
-  lg: '24px',
-  xl: '32px',
-  '2xl': '48px',
-  '3xl': '64px',
+  xs: 4,
+  sm: 8,
+  md: 16,
+  lg: 24,
+  xl: 32,
+  '2xl': 48,
+  '3xl': 64,
 };
 
 export const borderRadius = {
-  none: '0',
-  sm: '4px',
-  base: '8px',
-  md: '12px',
-  lg: '16px',
-  xl: '24px',
-  full: '9999px',
+  none: 0,
+  sm: 4,
+  base: 8,
+  md: 12,
+  lg: 16,
+  xl: 24,
+  full: 9999,
 };
 
 export const shadows = {
   // 레트로 퓨처리즘 느낌의 그림자
-  sm: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-  base: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
-  md: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-  lg: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-  xl: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+  sm: '0 1 2 0 rgba(0, 0, 0, 0.05)',
+  base: '0 1 3 0 rgba(0, 0, 0, 0.1), 0 1 2 0 rgba(0, 0, 0, 0.06)',
+  md: '0 4 6 -1 rgba(0, 0, 0, 0.1), 0 2 4 -1 rgba(0, 0, 0, 0.06)',
+  lg: '0 10 15 -3 rgba(0, 0, 0, 0.1), 0 4 6 -2 rgba(0, 0, 0, 0.05)',
+  xl: '0 20 25 -5 rgba(0, 0, 0, 0.1), 0 10 10 -5 rgba(0, 0, 0, 0.04)',
   
   // 픽셀 아트 느낌의 강한 그림자
-  pixel: '4px 4px 0px rgba(0, 0, 0, 0.3)',
-  'pixel-lg': '6px 6px 0px rgba(0, 0, 0, 0.3)',
+  pixel: '4 4 0 rgba(0, 0, 0, 0.3)',
+  'pixel-lg': '6 6 0 rgba(0, 0, 0, 0.3)',
   
   // 글로우 효과
   glow: {
-    blue: '0 0 20px rgba(59, 130, 246, 0.5)',
-    green: '0 0 20px rgba(34, 197, 94, 0.5)',
-    gold: '0 0 20px rgba(245, 158, 11, 0.5)',
-    purple: '0 0 20px rgba(139, 92, 246, 0.5)',
+    blue: '0 0 20 rgba(59, 130, 246, 0.5)',
+    green: '0 0 20 rgba(34, 197, 94, 0.5)',
+    gold: '0 0 20 rgba(245, 158, 11, 0.5)',
+    purple: '0 0 20 rgba(139, 92, 246, 0.5)',
   }
 };
 
@@ -206,13 +206,13 @@ export const keyframes = {
       transform: 'translate3d(0,0,0)',
     },
     '40%, 43%': {
-      transform: 'translate3d(0,-8px,0)',
+      transform: 'translate3d(0,-8,0)',
     },
     '70%': {
-      transform: 'translate3d(0,-4px,0)',
+      transform: 'translate3d(0,-4,0)',
     },
     '90%': {
-      transform: 'translate3d(0,-2px,0)',
+      transform: 'translate3d(0,-2,0)',
     },
   },
   
@@ -230,19 +230,19 @@ export const keyframes = {
       transform: 'translateX(0)',
     },
     '10%, 30%, 50%, 70%, 90%': {
-      transform: 'translateX(-2px)',
+      transform: 'translateX(-2)',
     },
     '20%, 40%, 60%, 80%': {
-      transform: 'translateX(2px)',
+      transform: 'translateX(2)',
     },
   },
   
   float: {
     '0%, 100%': {
-      transform: 'translateY(0px)',
+      transform: 'translateY(0)',
     },
     '50%': {
-      transform: 'translateY(-10px)',
+      transform: 'translateY(-10)',
     },
   },
   
@@ -260,16 +260,16 @@ export const keyframes = {
       transform: 'translate(0)',
     },
     '20%': {
-      transform: 'translate(-2px, 2px)',
+      transform: 'translate(-2, 2)',
     },
     '40%': {
-      transform: 'translate(-2px, -2px)',
+      transform: 'translate(-2, -2)',
     },
     '60%': {
-      transform: 'translate(2px, 2px)',
+      transform: 'translate(2, 2)',
     },
     '80%': {
-      transform: 'translate(2px, -2px)',
+      transform: 'translate(2, -2)',
     },
     '100%': {
       transform: 'translate(0)',
@@ -278,10 +278,10 @@ export const keyframes = {
   
   neon: {
     '0%': {
-      textShadow: '0 0 5px currentColor, 0 0 10px currentColor, 0 0 15px currentColor',
+      textShadow: '0 0 5 currentColor, 0 0 10 currentColor, 0 0 15 currentColor',
     },
     '100%': {
-      textShadow: '0 0 2px currentColor, 0 0 5px currentColor, 0 0 7px currentColor',
+      textShadow: '0 0 2 currentColor, 0 0 5 currentColor, 0 0 7 currentColor',
     },
   }
 };
@@ -291,7 +291,7 @@ export const componentThemes = {
   // 카드 컴포넌트
   card: {
     background: colors.neutral[50],
-    border: `1px solid ${colors.neutral[200]}`,
+    border: `1 solid ${colors.neutral[200]}`,
     borderRadius: borderRadius.lg,
     shadow: shadows.base,
     padding: spacing.lg,
@@ -320,7 +320,7 @@ export const componentThemes = {
     secondary: {
       background: 'transparent',
       color: colors.primary[500],
-      border: `2px solid ${colors.primary[500]}`,
+      border: `2 solid ${colors.primary[500]}`,
       borderRadius: borderRadius.base,
       padding: `${spacing.sm} ${spacing.md}`,
       '&:hover': {
@@ -361,7 +361,7 @@ export const componentThemes = {
   // 입력 필드
   input: {
     background: 'white',
-    border: `2px solid ${colors.neutral[300]}`,
+    border: `2 solid ${colors.neutral[300]}`,
     borderRadius: borderRadius.base,
     padding: spacing.sm,
     fontSize: typography.body.fontSize.base,
@@ -387,7 +387,7 @@ export const componentThemes = {
     background: colors.neutral[200],
     fill: colors.primary[500],
     borderRadius: borderRadius.full,
-    height: '8px',
+    height: 8,
     overflow: 'hidden',
   },
 };

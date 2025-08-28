@@ -132,7 +132,7 @@ export const SkillTreeVisualization: React.FC<SkillTreeVisualizationProps> = ({
                 borderWidth: size * 0.1,
                 borderColor: colors.warning[500],
                 borderTopColor: progress >= 100 ? colors.success[500] : colors.warning[500],
-                transform: [{ rotate: `${-90 + (progress / 100) * 360}deg` }]
+                                  transform: [{ rotate: `${-90 + (progress / 100) * 360}deg` }]
               }
             ]} 
           />

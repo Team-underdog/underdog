@@ -5,12 +5,13 @@ import * as SecureStore from 'expo-secure-store';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { signInWithEmail } from '../services/authService';
+import { API_ENDPOINTS } from '../config/api';
 
 import { Feather } from '@expo/vector-icons';
 import { PixelLogo } from '../components/PixelLogo';
 import { Input } from '../components/ui/Input';
 
-const apiBaseUrl: string = (Constants.expoConfig?.extra as any)?.apiBaseUrl || 'http://192.168.219.108:8000';
+const apiBaseUrl: string = API_ENDPOINTS.AUTH.LOGIN.replace('/api/auth/login', '');
 
 function isValidEmail(value: string): boolean {
   const re = /[^\s@]+@[^\s@]+\.[^\s@]+/;

@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#3b82f6',
     borderRadius: 8,
     opacity: 0.2,
-    transform: [{ rotate: '1deg' }],
+            transform: [{ rotate: '1deg' }],
   },
   logoContainer: {
     backgroundColor: '#fff',

@@ -1215,7 +1215,7 @@ const styles = StyleSheet.create({
   // 플로팅 버튼
   floatingButton: {
     position: 'absolute',
-    bottom: 100, // 하단 네비게이션 위에 위치
+    bottom: 120, // 하단 네비게이션 바 위에 충분히 위치하도록 조정
     right: 20,
     width: 56,
     height: 56,
@@ -1228,6 +1228,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 8,
     elevation: 8,
+    zIndex: 1000, // 다른 요소들 위에 표시되도록 zIndex 추가
   },
   // 업로드 모달 스타일
   modalContainer: {

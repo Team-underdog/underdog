@@ -64,30 +64,32 @@ class QuestService {
       trackingParams: { target: savingsTarget }
     });
 
-    // 2. 지출 관리 퀘스트
-    const spendingLimit = Math.floor(financialData.monthly_income * 0.7); // 수입의 70% 이하 지출
-    
-    quests.push({
-      id: 'spending_control_1',
-      title: '지출 관리 달인',
-      description: `이번 달 지출을 ${spendingLimit.toLocaleString()}원 이하로 관리하세요`,
-      category: 'financial',
-      difficulty: 'hard',
-      reward: {
-        credo: 150,
-        xp: 300,
-        skillName: '재무관리'
-      },
-      progress: {
-        current: financialData.monthly_spending,
-        target: spendingLimit,
-        percentage: Math.min((financialData.monthly_spending / spendingLimit) * 100, 100)
-      },
-      isCompleted: financialData.monthly_spending <= spendingLimit,
-      isActive: !!(financialData.monthly_spending > spendingLimit),
-      trackingType: 'spending_limit',
-      trackingParams: { limit: spendingLimit }
-    });
+    // 2. 지출 관리 퀘스트 (월 수입 정보가 있는 경우)
+    if (financialData.monthly_income && financialData.monthly_spending) {
+      const spendingLimit = Math.floor(financialData.monthly_income * 0.7); // 수입의 70% 이하 지출
+      
+      quests.push({
+        id: 'spending_control_1',
+        title: '지출 관리 달인',
+        description: `이번 달 지출을 ${spendingLimit.toLocaleString()}원 이하로 관리하세요`,
+        category: 'financial',
+        difficulty: 'hard',
+        reward: {
+          credo: 150,
+          xp: 300,
+          skillName: '재무관리'
+        },
+        progress: {
+          current: financialData.monthly_spending,
+          target: spendingLimit,
+          percentage: Math.min((financialData.monthly_spending / spendingLimit) * 100, 100)
+        },
+        isCompleted: financialData.monthly_spending <= spendingLimit,
+        isActive: !!(financialData.monthly_spending > spendingLimit),
+        trackingType: 'spending_limit',
+        trackingParams: { limit: spendingLimit }
+      });
+    }
 
     // 3. 거래 빈도 퀘스트
     const recentTransactionCount = userTransactions.length;
@@ -116,14 +118,14 @@ class QuestService {
     });
 
     // 4. 적금 퀘스트 (적금 계좌가 있는 경우)
-    if (financialData.savings_accounts.length > 0) {
+    if (financialData.savings_accounts && financialData.savings_accounts.length > 0) {
       const savingsAccount = financialData.savings_accounts[0];
       const maturityAmount = savingsAccount.balance * 1.2; // 20% 증가 목표
       
       quests.push({
         id: 'savings_growth_1',
         title: '적금 달성 챌린지',
-        description: `${savingsAccount.product_name} 잔액을 ${maturityAmount.toLocaleString()}원까지 늘리세요`,
+        description: `${savingsAccount.account_name} 잔액을 ${maturityAmount.toLocaleString()}원까지 늘리세요`,
         category: 'financial',
         difficulty: 'medium',
         reward: {
@@ -140,7 +142,7 @@ class QuestService {
         isActive: !!(savingsAccount.balance < maturityAmount),
         trackingType: 'savings_goal',
         trackingParams: { 
-          accountNo: savingsAccount.account_no,
+          accountNo: savingsAccount.account_number,
           target: maturityAmount 
         }
       });

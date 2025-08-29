@@ -217,7 +217,7 @@ const PsychologyTestAPI: React.FC = () => {
           onPress={loadHollandQuestions}
           disabled={isLoading}
         >
-          <Feather name="brain" size={20} color="#FFFFFF" />
+                          <Feather name="cpu" size={20} color="#FFFFFF" />
           <Text style={styles.buttonText}>직업흥미검사(H) 문항 조회</Text>
         </TouchableOpacity>
 

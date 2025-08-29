@@ -6,6 +6,7 @@ import hashlib
 
 if TYPE_CHECKING:
     from .financial import BankAccount, UserProduct
+    from .xp import UserXP
 
 
 class User(SQLModel, table=True):
@@ -44,6 +45,7 @@ class User(SQLModel, table=True):
     # 관계 정의
     bank_accounts: List["BankAccount"] = Relationship(back_populates="user")
     user_products: List["UserProduct"] = Relationship(back_populates="user")
+    xp_data: Optional["UserXP"] = Relationship(back_populates="user")
     
     @classmethod
     def hash_password(cls, password: str) -> str:

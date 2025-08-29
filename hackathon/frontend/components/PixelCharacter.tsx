@@ -11,10 +11,11 @@ import Svg, { Rect, Circle } from 'react-native-svg';
 
 interface PixelCharacterProps {
   level: number;
-  credoScore: number;
+  credoScore?: number;
+  size?: number;
 }
 
-export function PixelCharacter({ level, credoScore }: PixelCharacterProps) {
+export function PixelCharacter({ level, credoScore = 0, size = 80 }: PixelCharacterProps) {
   // 애니메이션 값
   const floatingY = useSharedValue(0);
   const scaleValue = useSharedValue(1);
@@ -57,7 +58,7 @@ export function PixelCharacter({ level, credoScore }: PixelCharacterProps) {
 
   // 픽셀 아트 스타일 캐릭터 SVG
   const CharacterSVG = () => (
-    <Svg width={80} height={80} viewBox="0 0 32 32">
+    <Svg width={size} height={size} viewBox="0 0 32 32">
       {/* 머리/얼굴 베이스 */}
       <Rect x="8" y="4" width="16" height="16" fill="#FFB6C1" />
       <Rect x="6" y="6" width="20" height="12" fill="#FFB6C1" />
@@ -98,8 +99,7 @@ export function PixelCharacter({ level, credoScore }: PixelCharacterProps) {
       ) : (
         <>
           <Rect x="13" y="15" width="1" height="1" fill="#000" />
-          <Rect x="14" y="14" width="4" height="1" fill="#000" />
-          <Rect x="18" y="15" width="1" height="1" fill="#000" />
+          <Rect x="19" y="15" width="1" height="1" fill="#000" />
         </>
       )}
       

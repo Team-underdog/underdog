@@ -18,7 +18,7 @@ import CharacterGrowth from '../components/CharacterGrowth';
 import { CharacterSelection } from '../components/CharacterSelection';
 import { getCurrentUser, signOutUser } from '../services/authService';
 import { financialService, type FinancialSummary } from '../services/financialService';
-import xpService, { type XPData } from '../services/xpService';
+import XPService, { type XPData } from '../services/xpService';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -130,9 +130,19 @@ export default function CampusCredoHome() {
     try {
       console.log('🎮 XP 데이터 로딩 시작');
       if (userData?.id) {
-        const xpData = await xpService.fetchXPData(userData.id.toString());
-        setXpData(xpData);
-        console.log('✅ XP 데이터 로딩 완료:', xpData);
+        const xpService = XPService.getInstance();
+        const credoData = await xpService.fetchCredoData(userData.id.toString());
+        if (credoData) {
+          setXpData({
+            currentXP: credoData.currentXP,
+            currentLevel: credoData.currentLevel,
+            nextLevelXP: credoData.nextLevelCredoRequired,
+            totalXP: credoData.totalXP,
+            credoScore: credoData.currentCredo
+          });
+          setCredoScore(credoData.currentCredo);
+          console.log('✅ XP 데이터 로딩 완료:', credoData);
+        }
       }
     } catch (error) {
       console.error('❌ XP 데이터 로딩 실패:', error);
@@ -342,21 +352,35 @@ export default function CampusCredoHome() {
                     financialData.recent_transactions.slice(0, 4).map((transaction, index) => (
                       <View key={index} style={styles.contactCard}>
                         <View style={[styles.contactIcon, { 
-                          backgroundColor: index % 2 === 0 ? '#3B82F6' : '#8B5CF6' 
+                          backgroundColor: transaction.transaction_type === 'income' ? '#10B981' : 
+                                         transaction.transaction_type === 'withdrawal' ? '#EF4444' :
+                                         transaction.transaction_type === 'transfer' ? '#3B82F6' : '#8B5CF6'
                         }]}>
-                          <Text style={styles.contactIconText}>
-                            {transaction.transaction_type === 'income' ? '💰' : '💸'}
+                                                  <Text style={styles.contactIconText}>
+                          {transaction.transaction_type === 'income' ? '💰' : 
+                           transaction.transaction_type === 'withdrawal' ? '💸' :
+                           transaction.transaction_type === 'transfer' ? '🔄' : '💳'}
+                        </Text>
+                        </View>
+                        <View style={styles.contactInfo}>
+                          <Text style={styles.contactName}>
+                            {transaction.description || 
+                             (transaction.transaction_type === 'income' ? '수입' :
+                              transaction.transaction_type === 'withdrawal' ? '지출' :
+                              transaction.transaction_type === 'transfer' ? '이체' : '거래')}
+                          </Text>
+                          <Text style={styles.contactType}>
+                            {transaction.transaction_type === 'income' ? '💰 수입' :
+                             transaction.transaction_type === 'withdrawal' ? '💸 지출' :
+                             transaction.transaction_type === 'transfer' ? '🔄 이체' : '💳 거래'}
                           </Text>
                         </View>
-                        <Text style={styles.contactName}>
-                          {transaction.description || `거래${index + 1}`}
-                        </Text>
                         <Text style={[
                           styles.contactAmount,
                           { color: transaction.transaction_type === 'income' ? '#10B981' : '#EF4444' }
                         ]}>
                           {transaction.transaction_type === 'income' ? '+' : '-'}
-                          {transaction.amount?.toLocaleString() || '0'}
+                          {Math.abs(transaction.amount || 0).toLocaleString()}
                         </Text>
                       </View>
                     ))
@@ -1156,11 +1180,22 @@ const styles = StyleSheet.create({
   contactIconText: {
     fontSize: 20,
   },
+  contactInfo: {
+    flex: 1,
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   contactName: {
     fontSize: 14,
     fontWeight: '600',
     color: '#1F2937',
-    marginBottom: 4,
+    marginBottom: 2,
+    textAlign: 'center',
+  },
+  contactType: {
+    fontSize: 11,
+    color: '#6B7280',
+    textAlign: 'center',
   },
   contactAmount: {
     fontSize: 16,

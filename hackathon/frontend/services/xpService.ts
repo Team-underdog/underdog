@@ -1,24 +1,26 @@
-import { API_ENDPOINTS } from '../config/api';
+/**
+ * 크레도 기반 성장 시스템 서비스
+ * XP는 보조 지표로, 크레도가 주요 성장 지표입니다.
+ */
 
-export interface XPData {
-  currentXP: number;
+export interface CredoData {
+  currentCredo: number;
   currentLevel: number;
-  nextLevelXP: number;
+  nextLevelCredoRequired: number;
+  totalCredo: number;
+  currentXP: number;
   totalXP: number;
-  credoScore: number;
+  progress: number;
 }
 
 export interface LevelRequirement {
   level: number;
-  xpRequired: number;
+  credoRequired: number;
   rewards: string[];
 }
 
 export class XPService {
   private static instance: XPService;
-  private currentXP: number = 0;
-  private totalXP: number = 0;
-  private credoScore: number = 0;
 
   private constructor() {}
 
@@ -29,79 +31,46 @@ export class XPService {
     return XPService.instance;
   }
 
-  // 레벨 계산
-  public calculateLevel(xp: number): number {
-    if (xp < 100) return 1;
-    if (xp < 300) return 2;
-    if (xp < 600) return 3;
-    if (xp < 1000) return 4;
-    if (xp < 1500) return 5;
-    if (xp < 2100) return 6;
-    if (xp < 2800) return 7;
-    if (xp < 3600) return 8;
-    if (xp < 4500) return 9;
-    return 10;
+  // 크레도 기반 레벨 계산
+  public calculateNextLevelCredo(credo: number): number {
+    const requirement = this.getLevelRequirements().find(req => req.credoRequired > credo);
+    return requirement ? requirement.credoRequired : 100;
   }
 
-  // 다음 레벨까지 필요한 XP
-  public calculateNextLevelXP(xp: number): number {
-    const currentLevel = this.calculateLevel(xp);
-    const levelRequirements = this.getLevelRequirements();
-    const requirement = levelRequirements.find(req => req.level === currentLevel);
-    return requirement ? requirement.xpRequired : 100;
+  // 크레도 점수로 현재 레벨 계산
+  public calculateLevel(credo: number): number {
+    const requirements = this.getLevelRequirements();
+    for (let i = requirements.length - 1; i >= 0; i--) {
+      if (credo >= requirements[i].credoRequired) {
+        return requirements[i].level;
+      }
+    }
+    return 1;
   }
 
-  // 레벨별 요구사항
+  // 레벨별 보상 가져오기
+  public getLevelRewards(level: number): string[] {
+    const requirement = this.getLevelRequirements().find(req => req.level === level);
+    return requirement ? requirement.rewards : [];
+  }
+
+  // 레벨별 요구사항 (크레도 기반)
   public getLevelRequirements(): LevelRequirement[] {
     return [
-      { level: 1, xpRequired: 100, rewards: ['기본 캐릭터', '기본 스킬'] },
-      { level: 2, xpRequired: 300, rewards: ['레벨 2 캐릭터', '스킬 포인트 +1'] },
-      { level: 3, xpRequired: 600, rewards: ['레벨 3 캐릭터', '스킬 포인트 +1'] },
-      { level: 4, xpRequired: 1000, rewards: ['레벨 4 캐릭터', '스킬 포인트 +1'] },
-      { level: 5, xpRequired: 1500, rewards: ['레벨 5 캐릭터', '스킬 포인트 +1'] },
-      { level: 6, xpRequired: 2100, rewards: ['레벨 6 캐릭터', '스킬 포인트 +1'] },
-      { level: 7, xpRequired: 2800, rewards: ['레벨 7 캐릭터', '스킬 포인트 +1'] },
-      { level: 8, xpRequired: 3600, rewards: ['레벨 8 캐릭터', '스킬 포인트 +1'] },
-      { level: 9, xpRequired: 4500, rewards: ['레벨 9 캐릭터', '스킬 포인트 +1'] },
-      { level: 10, xpRequired: 5500, rewards: ['최고 레벨 캐릭터', '특별 보상'] }
+      { level: 1, credoRequired: 100, rewards: ['기본 캐릭터', '기본 스킬'] },
+      { level: 2, credoRequired: 300, rewards: ['레벨 2 캐릭터', '스킬 포인트 +1'] },
+      { level: 3, credoRequired: 600, rewards: ['레벨 3 캐릭터', '스킬 포인트 +1'] },
+      { level: 4, credoRequired: 1000, rewards: ['레벨 4 캐릭터', '스킬 포인트 +1'] },
+      { level: 5, credoRequired: 1500, rewards: ['레벨 5 캐릭터', '스킬 포인트 +1'] },
+      { level: 6, credoRequired: 2100, rewards: ['레벨 6 캐릭터', '스킬 포인트 +1'] },
+      { level: 7, credoRequired: 2800, rewards: ['레벨 7 캐릭터', '스킬 포인트 +1'] },
+      { level: 8, credoRequired: 3600, rewards: ['레벨 8 캐릭터', '스킬 포인트 +1'] },
+      { level: 9, credoRequired: 4500, rewards: ['레벨 9 캐릭터', '스킬 포인트 +1'] },
+      { level: 10, credoRequired: 5500, rewards: ['최고 레벨 캐릭터', '특별 보상'] }
     ];
   }
 
-  // 활동별 XP 점수
-  public getActivityXP(activity: string): number {
-    const activityScores: { [key: string]: number } = {
-      // 금융 활동
-      'transaction': 10,
-      'saving': 25,
-      'investment': 50,
-      'budget_planning': 30,
-      'financial_goal': 100,
-      
-      // 퀘스트
-      'quest_complete': 75,
-      'daily_quest': 25,
-      'weekly_quest': 150,
-      'achievement': 200,
-      
-      // 학습 활동
-      'financial_education': 40,
-      'article_read': 15,
-      'course_complete': 200,
-      
-      // 소셜 활동
-      'post_share': 20,
-      'comment': 10,
-      'like': 5,
-      
-      // 로그인
-      'daily_login': 10,
-      'streak_bonus': 50
-    };
-
-    return activityScores[activity] || 0;
-  }
-
-  // 활동별 크레도 점수
+  // 활동별 크레도 점수 (주요 성장 지표)
   public getActivityCredo(activity: string): number {
     const credoScores: { [key: string]: number } = {
       // 금융 활동
@@ -135,100 +104,131 @@ export class XPService {
     return credoScores[activity] || 0;
   }
 
-  // 로컬 XP 데이터 가져오기 (백엔드 연동 없음)
-  public async fetchXPData(userId: string): Promise<XPData> {
-    // 로컬 상태에서 XP 데이터 반환
-    return {
-      currentXP: this.currentXP,
-      currentLevel: this.calculateLevel(this.currentXP),
-      nextLevelXP: this.calculateNextLevelXP(this.currentXP),
-      totalXP: this.totalXP,
-      credoScore: this.credoScore
+  // 활동별 XP 점수 (보조 지표)
+  public getActivityXP(activity: string): number {
+    const activityScores: { [key: string]: number } = {
+      // 금융 활동
+      'transaction': 10,
+      'saving': 25,
+      'investment': 50,
+      'budget_planning': 30,
+      'financial_goal': 100,
+      
+      // 퀘스트
+      'quest_complete': 75,
+      'daily_quest': 25,
+      'weekly_quest': 150,
+      'achievement': 200,
+      
+      // 학습 활동
+      'financial_education': 40,
+      'article_read': 15,
+      'course_complete': 200,
+      
+      // 소셜 활동
+      'post_share': 20,
+      'comment': 10,
+      'like': 5,
+      
+      // 로그인
+      'daily_login': 10,
+      'streak_bonus': 50
     };
+
+    return activityScores[activity] || 0;
   }
 
-  // XP 추가하기 (로컬 상태 업데이트)
-  public async addXP(userId: string, activity: string, amount?: number): Promise<boolean> {
+  // 크레도 데이터 가져오기 (백엔드 연동)
+  public async fetchCredoData(userId: string): Promise<CredoData> {
     try {
-      const xpAmount = amount || this.getActivityXP(activity);
-      const credoAmount = this.getActivityCredo(activity);
-      
-      // 로컬 상태 업데이트
-      this.currentXP += xpAmount;
-      this.totalXP += xpAmount;
-      this.credoScore += credoAmount;
-      
-      console.log(`XP 추가: ${activity} +${xpAmount}XP, +${credoAmount}크레도`);
-      return true;
+      const token = await this.getAuthToken();
+      const response = await fetch(`http://localhost:8000/api/xp/progress/${userId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return {
+          currentCredo: data.current_credo || 0,
+          currentLevel: data.current_level || 1,
+          nextLevelCredoRequired: data.credo_to_next || 100,
+          totalCredo: data.total_credo || 0,
+          currentXP: data.current_xp || 0,
+          totalXP: data.total_xp || 0,
+          progress: data.progress || 0,
+        };
+      }
     } catch (error) {
-      console.error('XP 추가 실패:', error);
-      return false;
+      console.error('크레도 데이터 로딩 실패:', error);
     }
-  }
 
-  // 레벨업 애니메이션 데이터 생성
-  public generateLevelUpData(previousXP: number, currentXP: number) {
-    const previousLevel = this.calculateLevel(previousXP);
-    const currentLevel = this.calculateLevel(currentXP);
-    
-    if (currentLevel > previousLevel) {
-      return {
-        levelUp: true,
-        newLevel: currentLevel,
-        rewards: this.getLevelRewards(currentLevel),
-        animation: {
-          duration: 3000,
-          scale: [1, 1.3, 1],
-          glow: true
-        }
-      };
-    }
-    
-    return { levelUp: false };
-  }
-
-  // 레벨별 보상
-  private getLevelRewards(level: number): string[] {
-    const requirements = this.getLevelRequirements();
-    const requirement = requirements.find(req => req.level === level);
-    return requirement ? requirement.rewards : [];
-  }
-
-  // 현재 진행률 계산
-  public getProgressPercentage(currentXP: number): number {
-    const currentLevel = this.calculateLevel(currentXP);
-    const levelRequirements = this.getLevelRequirements();
-    const requirement = levelRequirements.find(req => req.level === currentLevel);
-    
-    if (!requirement) return 100;
-    
-    const previousLevelXP = currentLevel > 1 
-      ? levelRequirements.find(req => req.level === currentLevel - 1)?.xpRequired || 0
-      : 0;
-    
-    const levelXP = currentXP - previousLevelXP;
-    const levelRequiredXP = requirement.xpRequired - previousLevelXP;
-    
-    return Math.min((levelXP / levelRequiredXP) * 100, 100);
-  }
-
-  // 더미 데이터로 초기화 (테스트용)
-  public initializeWithDummyData(xp: number = 0, credo: number = 0) {
-    this.currentXP = xp;
-    this.totalXP = xp;
-    this.credoScore = credo;
-  }
-
-  // 현재 상태 가져오기
-  public getCurrentState() {
+    // 기본값 반환
     return {
-      currentXP: this.currentXP,
-      totalXP: this.totalXP,
-      credoScore: this.credoScore,
-      level: this.calculateLevel(this.currentXP),
-      progress: this.getProgressPercentage(this.currentXP)
+      currentCredo: 0,
+      currentLevel: 1,
+      nextLevelCredoRequired: 100,
+      totalCredo: 0,
+      currentXP: 0,
+      totalXP: 0,
+      progress: 0,
     };
+  }
+
+  // 크레도 점수 추가 (백엔드 연동)
+  public async addCredoForActivity(
+    userId: string, 
+    activityType: string, 
+    description?: string
+  ): Promise<CredoData | null> {
+    try {
+      const token = await this.getAuthToken();
+      const response = await fetch(`http://localhost:8000/api/xp/add`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          activity_type: activityType,
+          description: description,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return {
+          currentCredo: data.credo_score || 0,
+          currentLevel: data.level || 1,
+          nextLevelCredoRequired: data.xp_to_next || 100,
+          totalCredo: data.credo_score || 0,
+          currentXP: data.xp || 0,
+          totalXP: data.total_xp || 0,
+          progress: data.progress || 0,
+        };
+      }
+    } catch (error) {
+      console.error('크레도 점수 추가 실패:', error);
+    }
+
+    return null;
+  }
+
+
+
+  // 인증 토큰 가져오기
+  private async getAuthToken(): Promise<string> {
+    try {
+      // SecureStore에서 토큰 가져오기 (Expo 환경에 맞게)
+      const SecureStore = require('expo-secure-store');
+      return await SecureStore.getItemAsync('authToken') || '';
+    } catch (error) {
+      console.error('토큰 가져오기 실패:', error);
+      return '';
+    }
   }
 }
 
-export default XPService.getInstance();
+export default XPService;

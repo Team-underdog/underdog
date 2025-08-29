@@ -275,8 +275,49 @@ function QuestPage() {
     try {
       setIsLoadingAI(true);
       const recommendations = await questRecommendationService.generatePersonalizedQuests(3);
-      setAiRecommendedQuests(recommendations);
-      console.log('✅ AI 추천 퀘스트 로드 완료:', recommendations.length, '개');
+      
+      // 디버깅: 현재 퀘스트 상태 확인
+      console.log('🔍 현재 realQuests 상태:', realQuests.map(q => ({
+        title: q.title,
+        isActive: q.isActive,
+        isCompleted: q.isCompleted
+      })));
+      
+      console.log('🔍 AI 추천 퀘스트 원본:', recommendations.map(q => ({
+        title: q.title,
+        description: q.description
+      })));
+      
+      // 진행중이거나 완료된 퀘스트는 AI 추천에서 제외
+      const filteredRecommendations = recommendations.filter(aiQuest => {
+        const isInProgress = realQuests.some(realQuest => {
+          // 제목과 설명을 모두 비교해서 더 정확한 매칭
+          const titleMatch = realQuest.title === aiQuest.title;
+          const descriptionMatch = realQuest.description === aiQuest.description;
+          const isActiveOrCompleted = realQuest.isActive || realQuest.isCompleted;
+          
+          if (titleMatch || descriptionMatch) {
+            console.log('🔍 퀘스트 매칭 발견:', {
+              aiQuest: aiQuest.title,
+              realQuest: realQuest.title,
+              titleMatch,
+              descriptionMatch,
+              isActiveOrCompleted
+            });
+          }
+          
+          return (titleMatch || descriptionMatch) && isActiveOrCompleted;
+        });
+        
+        if (isInProgress) {
+          console.log('❌ AI 추천에서 제외 (진행중/완료):', aiQuest.title);
+        }
+        
+        return !isInProgress;
+      });
+      
+      setAiRecommendedQuests(filteredRecommendations);
+      console.log('✅ AI 추천 퀘스트 로드 완료:', filteredRecommendations.length, '개 (필터링 후)');
     } catch (error) {
       console.error('❌ AI 추천 퀘스트 로드 실패:', error);
       setAiRecommendedQuests([]);
@@ -313,7 +354,8 @@ function QuestPage() {
       // 실제 퀘스트 시스템 사용
       switch (selectedTab) {
         case 'recommended':
-          return questService.getActiveQuests(questsToUse);
+          // 추천 퀘스트 탭에서는 빈 배열 반환 (AI 추천 퀘스트는 별도 섹션에서 표시)
+          return [];
         case 'inProgress':
           return questsToUse.filter(quest => quest.isActive && !quest.isCompleted);
         case 'completed':
@@ -500,12 +542,33 @@ function QuestPage() {
         [{ text: '확인' }]
       );
     } else if (quest.isActive) {
-      // 퀘스트 진행 상황 보기
-      Alert.alert(
-        quest.title,
-        `${quest.description}\n\n진행률: ${quest.progress.percentage.toFixed(1)}%\n현재: ${quest.progress.current.toLocaleString()}\n목표: ${quest.progress.target.toLocaleString()}`,
-        [{ text: '확인' }]
-      );
+      // 퀘스트 진행 상황을 상세 모달로 표시
+      const questForModal: Quest = {
+        id: quest.id,
+        title: quest.title,
+        description: quest.description,
+        category: quest.category,
+        difficulty: quest.difficulty,
+        reward: quest.reward,
+        progress: quest.progress,
+        isCompleted: quest.isCompleted,
+        isActive: quest.isActive,
+        trackingType: quest.trackingType,
+        trackingParams: quest.trackingParams,
+        status: 'inProgress',
+        currentProgress: quest.progress.current,
+        maxProgress: quest.progress.target,
+        rewards: {
+          credo: quest.reward.credo,
+          xp: quest.reward.xp
+        },
+        requirements: [
+          `${quest.progress.target.toLocaleString()}${quest.trackingType === 'balance_target' ? '원' : quest.trackingType === 'spending_limit' ? '원' : '건'} 달성하기`
+        ]
+      };
+      
+      setSelectedQuest(questForModal);
+      setShowQuestModal(true);
     } else {
       // 퀘스트 활성화
       setRealQuests(prev => prev.map(q => 
@@ -521,47 +584,54 @@ function QuestPage() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-      {/* 헤더 */}
-      <Animated.View entering={FadeInUp.delay(100)} style={styles.header}>
-        <Text style={styles.headerTitle}>퀘스트</Text>
-        <Text style={styles.headerSubtitle}>도전하고 성장하세요!</Text>
-      </Animated.View>
+      <ScrollView 
+        style={styles.scrollView} 
+        contentContainerStyle={styles.scrollViewContent}
+        showsVerticalScrollIndicator={false}
+        bounces={true}
+        alwaysBounceVertical={false}
+      >
+        {/* 헤더 */}
+        <Animated.View entering={FadeInUp.delay(100)} style={styles.header}>
+          <Text style={styles.headerTitle}>퀘스트</Text>
+          <Text style={styles.headerSubtitle}>도전하고 성장하세요!</Text>
+        </Animated.View>
 
-      {/* 탭 네비게이션 */}
-      <Animated.View entering={FadeInDown.delay(200)} style={styles.tabContainer}>
-        <TouchableOpacity
-          style={[styles.tab, selectedTab === 'recommended' && styles.tabActive]}
-          onPress={() => setSelectedTab('recommended')}
-        >
-          <Text style={[styles.tabText, selectedTab === 'recommended' && styles.tabTextActive]}>
-            추천 퀘스트
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, selectedTab === 'inProgress' && styles.tabActive]}
-          onPress={() => setSelectedTab('inProgress')}
-        >
-          <Text style={[styles.tabText, selectedTab === 'inProgress' && styles.tabTextActive]}>
-            진행중
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, selectedTab === 'completed' && styles.tabActive]}
-          onPress={() => setSelectedTab('completed')}
-        >
-          <Text style={[styles.tabText, selectedTab === 'completed' && styles.tabTextActive]}>
-            완료
-          </Text>
-        </TouchableOpacity>
-      </Animated.View>
+        {/* 탭 네비게이션 */}
+        <Animated.View entering={FadeInDown.delay(200)} style={styles.tabContainer}>
+          <TouchableOpacity
+            style={[styles.tab, selectedTab === 'recommended' && styles.tabActive]}
+            onPress={() => setSelectedTab('recommended')}
+          >
+            <Text style={[styles.tabText, selectedTab === 'recommended' && styles.tabTextActive]}>
+              추천 퀘스트
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, selectedTab === 'inProgress' && styles.tabActive]}
+            onPress={() => setSelectedTab('inProgress')}
+          >
+            <Text style={[styles.tabText, selectedTab === 'inProgress' && styles.tabTextActive]}>
+              진행중
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, selectedTab === 'completed' && styles.tabActive]}
+            onPress={() => setSelectedTab('completed')}
+          >
+            <Text style={[styles.tabText, selectedTab === 'completed' && styles.tabTextActive]}>
+              완료
+            </Text>
+          </TouchableOpacity>
+        </Animated.View>
+
 
       {/* AI 추천 퀘스트 섹션 */}
       {selectedTab === 'recommended' && aiRecommendedQuests.length > 0 && (
         <Animated.View entering={FadeInDown.delay(250)} style={styles.aiRecommendationSection}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleContainer}>
-              <Feather name="brain" size={20} color={colors.primary[500]} />
+              <Feather name="cpu" size={20} color={colors.primary[500]} />
               <Text style={styles.sectionTitle}>AI 맞춤 추천</Text>
             </View>
             <Text style={styles.sectionSubtitle}>
@@ -608,7 +678,7 @@ function QuestPage() {
               
               {/* AI 추천 이유 */}
               <View style={styles.aiReasonContainer}>
-                <Feather name="lightbulb" size={14} color={colors.warning[500]} />
+                <Feather name="zap" size={14} color={colors.warning[500]} />
                 <Text style={styles.aiReasonText}>{quest.aiReason}</Text>
               </View>
 
@@ -646,7 +716,62 @@ function QuestPage() {
                   </View>
                 </View>
                 
-                <TouchableOpacity style={styles.startAIQuestButton}>
+                <TouchableOpacity 
+                  style={styles.startAIQuestButton}
+                  onPress={() => {
+                    // AI 퀘스트 시작 로직
+                    Alert.alert(
+                      '퀘스트 시작',
+                      `"${quest.title}" 퀘스트를 시작하시겠습니까?`,
+                      [
+                        { text: '취소', style: 'cancel' },
+                        { 
+                          text: '시작', 
+                          onPress: () => {
+                            // AI 퀘스트를 실제 퀘스트로 변환하여 추가
+                            const newQuest = {
+                              id: quest.id,
+                              title: quest.title,
+                              description: quest.description,
+                              category: quest.category,
+                              difficulty: quest.difficulty,
+                              reward: {
+                                credo: quest.xpReward * 0.5,
+                                xp: quest.xpReward,
+                                skillName: Object.keys(quest.skillRewards)[0] || '일반'
+                              },
+                              progress: {
+                                current: 0,
+                                target: 1,
+                                percentage: 0
+                              },
+                              isCompleted: false,
+                              isActive: true,
+                              trackingType: 'transaction_count' as const,
+                              trackingParams: {},
+                              status: 'inProgress' as const,
+                              currentProgress: 0,
+                              rewards: {
+                                credo: quest.xpReward * 0.5,
+                                xp: quest.xpReward
+                              }
+                            };
+                            
+                            // realQuests에 새 퀘스트 추가
+                            setRealQuests(prev => [...prev, newQuest]);
+                            
+                            // AI 추천에서 해당 퀘스트 제거
+                            setAiRecommendedQuests(prev => 
+                              prev.filter(q => q.id !== quest.id)
+                            );
+                            
+                            Alert.alert('퀘스트 시작!', '새로운 퀘스트가 시작되었습니다. 파이팅! 💪');
+                          }
+                        }
+                      ]
+                    );
+                  }}
+                >
                   <Text style={styles.startAIQuestButtonText}>시작하기</Text>
                   <Feather name="arrow-right" size={16} color={colors.white} />
                 </TouchableOpacity>
@@ -656,8 +781,7 @@ function QuestPage() {
         </Animated.View>
       )}
 
-      {/* 퀘스트 리스트 */}
-      <ScrollView style={styles.questList} showsVerticalScrollIndicator={false}>
+        {/* 퀘스트 리스트 */}
         <View style={styles.questContainer}>
           {getFilteredQuests().map((quest, index) => {
             // 실제 퀘스트 데이터인지 확인
@@ -785,10 +909,9 @@ function QuestPage() {
           })}
         </View>
 
-        {/* 하단 패딩 */}
-        <View style={{ height: 100 }} />
+        {/* 하단 패딩 - 하단 네비게이션과 겹치지 않도록 충분한 여백 확보 */}
+        <View style={{ height: 120 }} />
       </ScrollView>
-      </View>
 
       {/* 하단 네비게이션 */}
       <CampusCredoBottomNav />
@@ -849,6 +972,13 @@ const styles = StyleSheet.create({
   },
   tabTextActive: {
     color: 'white',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollViewContent: {
+    flexGrow: 1,
+    paddingBottom: 20,
   },
   questList: {
     flex: 1,

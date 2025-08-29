@@ -83,6 +83,9 @@ export interface FinancialSummary {
   accounts: BankAccount[];
   recent_transactions: Transaction[];
   products: UserProduct[];
+  monthly_income?: number;
+  monthly_spending?: number;
+  savings_accounts?: BankAccount[];
 }
 
 class FinancialService {
@@ -545,12 +548,14 @@ class FinancialService {
     const amount = Math.abs(transaction.amount);
     const formattedAmount = amount.toLocaleString('ko-KR');
     
-    if (transaction.transaction_type === '입금') {
-      return `${transaction.category} 입금 ${formattedAmount}원`;
-    } else if (transaction.transaction_type === '출금') {
-      return `${transaction.category} 지출 ${formattedAmount}원`;
+    if (transaction.transaction_type === 'income' || transaction.transaction_type === '입금') {
+      return `💰 ${transaction.category} 수입 +${formattedAmount}원`;
+    } else if (transaction.transaction_type === 'withdrawal' || transaction.transaction_type === '출금') {
+      return `💸 ${transaction.category} 지출 -${formattedAmount}원`;
+    } else if (transaction.transaction_type === 'transfer' || transaction.transaction_type === '이체') {
+      return `🔄 ${transaction.category} 이체 ${formattedAmount}원`;
     } else {
-      return `${transaction.category} ${formattedAmount}원`;
+      return `💳 ${transaction.category} ${formattedAmount}원`;
     }
   }
 

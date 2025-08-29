@@ -216,7 +216,7 @@ const AIFeedAnalyzer: React.FC = () => {
             <ActivityIndicator color="#FFFFFF" />
           ) : (
             <>
-              <Feather name="brain" size={20} color="#FFFFFF" />
+                              <Feather name="cpu" size={20} color="#FFFFFF" />
               <Text style={styles.analyzeButtonText}>AI 분석 시작</Text>
             </>
           )}

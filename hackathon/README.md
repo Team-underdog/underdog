@@ -19,10 +19,10 @@
 3. **즉시 실행**: 앱이 자동으로 다운로드되고 실행됩니다!
 
 ### **📱 Expo Go QR 코드**
-```
-🔗 Expo Go QR 코드 (스캔하여 즉시 실행)
-📱 iPhone에 최적화되어 있습니다!
-```
+![Expo Go QR Code](frontend/입장큐알.png)
+
+**🔗 위 QR 코드를 Expo Go 앱으로 스캔하여 즉시 실행하세요!**
+**📱 iPhone에 최적화되어 있습니다!**
 
 ### **🍎 iPhone 최적화**
 - **iOS 네이티브 성능**: React Native로 구현된 최적화된 UI

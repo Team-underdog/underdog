@@ -20,7 +20,7 @@ export const API_ENDPOINTS = {
   UNIVERSITY: {
     LIST: `${API_BASE_URL}/api/universities`,
     DEPARTMENTS: `${API_BASE_URL}/api/universities`,
-    COURSES: `${API_BASE_URL}/api/courses`,
+    COURSES: `${API_BASE_URL}/api/universities`,
   },
   // 학사
   ACADEMIC: {
@@ -37,7 +37,10 @@ export const API_ENDPOINTS = {
   // XP/레벨
   XP: {
     ADD: `${API_BASE_URL}/api/xp/add`,
+    ADD_CREDO: `${API_BASE_URL}/api/xp/add`,
+    DEDUCT_FOR_DELETION: `${API_BASE_URL}/api/xp/deduct-for-deletion`,
     ME: `${API_BASE_URL}/api/xp/me`,
+    PROGRESS: `${API_BASE_URL}/api/xp/progress`,
   },
   // 건강
   HEALTH: {
@@ -47,6 +50,16 @@ export const API_ENDPOINTS = {
   CHRONICLE: {
     POSTS: `${API_BASE_URL}/api/chronicle/posts`,
     USER_POSTS: `${API_BASE_URL}/api/chronicle/posts`,
+  },
+  // AI 상담
+  AI_ADVISOR: {
+    HEALTH: `${API_BASE_URL}/api/ai-advisor/health`,
+    GENERATE: `${API_BASE_URL}/api/ai-advisor/generate`,
+    FINANCIAL_ADVICE: `${API_BASE_URL}/api/ai-advisor/financial-advice`,
+    BUDGET_ANALYSIS: `${API_BASE_URL}/api/ai-advisor/budget-analysis`,
+    SELF_PROMOTION: `${API_BASE_URL}/api/ai-advisor/self-promotion`,
+    HOLLAND_PROFILE: `${API_BASE_URL}/api/ai-advisor/holland-profile`,
+    ANALYZE_CHRONICLE_HOLLAND: `${API_BASE_URL}/api/ai-advisor/analyze-chronicle-holland`,
   }
 };
 
@@ -74,10 +87,16 @@ global.fetch = function(input, init) {
 // API 연결 상태 확인
 export const checkAPIConnection = async () => {
   try {
+    console.log('🔍 API 연결 테스트 시작:', API_ENDPOINTS.HEALTH.STATUS);
     const response = await fetch(API_ENDPOINTS.HEALTH.STATUS);
+    console.log('✅ API 응답 상태:', response.status);
+    const data = await response.json();
+    console.log('✅ API 응답 데이터:', data);
     return response.ok;
   } catch (error) {
     console.error('❌ 백엔드 API 연결 실패:', error);
+    console.error('❌ 에러 타입:', typeof error);
+    console.error('❌ 에러 메시지:', error.message);
     return false;
   }
 };
@@ -85,19 +104,16 @@ export const checkAPIConnection = async () => {
 // 간단한 API 연결 테스트
 export const testAPIConnection = async () => {
   try {
-    console.log('🌐 백엔드 API 연결 테스트 시작...');
-    
-    const response = await fetch(API_ENDPOINTS.HEALTH.STATUS);
-    if (response.ok) {
-      const data = await response.json();
-      console.log('✅ 백엔드 API 연결 성공:', data);
-      return true;
+    console.log('🧪 API 연결 테스트 시작...');
+    const isConnected = await checkAPIConnection();
+    if (isConnected) {
+      console.log('✅ API 연결 성공!');
     } else {
-      console.log('❌ 백엔드 API 응답 오류:', response.status);
-      return false;
+      console.log('❌ API 연결 실패!');
     }
+    return isConnected;
   } catch (error) {
-    console.error('❌ 백엔드 API 연결 테스트 실패:', error);
+    console.error('❌ API 연결 테스트 중 오류:', error);
     return false;
   }
 };

@@ -193,7 +193,8 @@ class XPService:
     @staticmethod
     def _get_recent_activities(user_xp_id: int) -> List[Dict[str, Any]]:
         """최근 활동 내역 가져오기"""
-        with get_session() as session:
+        session = next(get_session())
+        try:
             activities = session.exec(
                 select(XPActivity)
                 .where(XPActivity.user_xp_id == user_xp_id)
@@ -211,11 +212,14 @@ class XPService:
                 }
                 for activity in activities
             ]
+        finally:
+            session.close()
 
     @staticmethod
     def get_leaderboard(limit: int = 10) -> List[Dict[str, Any]]:
         """크레도 점수 기반 리더보드"""
-        with get_session() as session:
+        session = next(get_session())
+        try:
             users = session.exec(
                 select(UserXP)
                 .order_by(UserXP.credo_score.desc())
@@ -231,3 +235,102 @@ class XPService:
                 }
                 for user in users
             ]
+        finally:
+            session.close()
+
+    @staticmethod
+    def deduct_credo_for_post_deletion(
+        user_id: int,
+        post_id: str,
+        description: str = "크로니클 포스트 삭제"
+    ) -> XPResponse:
+        """포스트 삭제 시 크레도 점수 차감"""
+        user_xp = XPService.get_or_create_user_xp(user_id)
+        
+        # 삭제 시 차감할 크레도 점수 (기본값: 2점)
+        credo_deduction = 2
+        
+        # 크레도 점수 차감 (음수 방지)
+        old_credo = user_xp.credo_score
+        new_credo = max(0, old_credo - credo_deduction)
+        
+        # 데이터베이스 업데이트
+        session = next(get_session())
+        try:
+            # UserXP 업데이트
+            user_xp.credo_score = new_credo
+            user_xp.last_activity_at = datetime.utcnow()
+            user_xp.updated_at = datetime.utcnow()
+            
+            session.add(user_xp)
+            
+            # 삭제 활동 기록 (차감된 점수를 음수로 기록)
+            XPService._record_activity(
+                session, user_xp.id, XPActivityType.POST_SHARE, 0, -credo_deduction, 
+                description, {"post_id": post_id, "action": "delete", "deduction": credo_deduction}
+            )
+            
+            session.commit()
+            session.refresh(user_xp)
+        finally:
+            session.close()
+        
+        # 진행률 계산
+        credo_to_next = XPService._calculate_credo_to_next(user_xp.current_level)
+        progress = (new_credo / credo_to_next * 100) if credo_to_next > 0 else 100
+        
+        return XPResponse(
+            level=user_xp.current_level,
+            xp=user_xp.current_xp,
+            xp_to_next=credo_to_next,
+            total_xp=user_xp.total_xp,
+            credo_score=user_xp.credo_score,
+            progress=progress,
+            leveled_up=False,
+            recent_activities=XPService._get_recent_activities(user_xp.id)
+        )
+
+    @staticmethod
+    def update_holland_score(
+        user_id: int, 
+        holland_type: str, 
+        score_increase: int,
+        analysis_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Holland 점수 업데이트"""
+        session = next(get_session())
+        try:
+            # 사용자 정보 가져오기
+            from ..models.user import User
+            user = session.exec(select(User).where(User.id == user_id)).first()
+            
+            if not user:
+                raise ValueError(f"사용자 {user_id}를 찾을 수 없습니다.")
+            
+            # Holland 점수 업데이트
+            old_score = user.holland_score or 0
+            new_score = max(0, old_score + score_increase)  # 음수 방지
+            
+            user.holland_type = holland_type
+            user.holland_score = new_score
+            user.holland_analysis_date = datetime.utcnow()
+            user.updated_at = datetime.utcnow()
+            
+            session.add(user)
+            session.commit()
+            session.refresh(user)
+            
+            return {
+                "success": True,
+                "old_score": old_score,
+                "new_score": new_score,
+                "holland_type": holland_type,
+                "analysis_data": analysis_data,
+                "updated_at": user.updated_at.isoformat()
+            }
+            
+        except Exception as e:
+            session.rollback()
+            raise e
+        finally:
+            session.close()

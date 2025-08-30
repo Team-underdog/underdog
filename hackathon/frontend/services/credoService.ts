@@ -87,11 +87,11 @@ class CredoService extends EventEmitter {
   }
 
   // 사용자 ID 설정
-  public setUserId(userId: string): void {
+  public async setUserId(userId: string): Promise<void> {
     this.userId = userId;
     console.log(`👤 CredoService 사용자 ID 설정: ${userId}`);
     // 사용자 ID가 변경되면 데이터 다시 로드
-    this.loadCredoData();
+    await this.loadCredoData();
   }
 
   // 사용자 ID 가져오기
@@ -100,15 +100,31 @@ class CredoService extends EventEmitter {
   }
 
   // 크레도 데이터 로드
-  private loadCredoData(): void {
+  public async loadCredoData(): Promise<void> {
     try {
       if (!this.userId) {
         console.log('⚠️ 사용자 ID가 설정되지 않음, 기본값 사용');
         return;
       }
 
-      // 사용자별 크레도 데이터 로드 (백엔드 API 연동 예정)
-      console.log(`📊 사용자 ${this.userId}의 크레도 데이터 로드됨`);
+      // 백엔드 API에서 실제 크레도 데이터 로드
+      const response = await fetch(`${API_BASE_URL}/api/xp/progress/${this.userId}`);
+      if (response.ok) {
+        const data = await response.json() as any;
+        if (data.success && data.data) {
+          this.credoStats = {
+            totalCredo: data.data.total_xp || 0,
+            currentCredo: data.data.credo_score || 0,
+            spentCredo: 0, // 백엔드에서 제공하지 않는 경우
+            earnedCredo: data.data.total_xp || 0,
+            level: data.data.current_level || 1,
+            transactions: []
+          };
+          console.log(`📊 사용자 ${this.userId}의 크레도 데이터 로드됨:`, this.credoStats);
+        }
+      } else {
+        console.log('⚠️ 크레도 데이터 로드 실패, 기본값 사용');
+      }
     } catch (error) {
       console.error('크레도 데이터 로드 실패:', error);
     }

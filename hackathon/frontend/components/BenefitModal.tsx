@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -11,16 +11,29 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FinancialBenefit, BenefitRecommendation } from '../services/benefitService';
+import SelfPromotionModal from './SelfPromotionModal';
 
 interface BenefitModalProps {
   visible: boolean;
   onClose: () => void;
   benefits: BenefitRecommendation;
+  userId?: string;
+  characterLevel?: number;
+  credoScore?: number;
 }
 
 const { width } = Dimensions.get('window');
 
-export default function BenefitModal({ visible, onClose, benefits }: BenefitModalProps) {
+export default function BenefitModal({ visible, onClose, benefits, userId, characterLevel = 1, credoScore = 0 }: BenefitModalProps) {
+  const [showSelfPromotion, setShowSelfPromotion] = useState(false);
+
+  const handleSelfPromotion = () => {
+    setShowSelfPromotion(true);
+  };
+
+  const closeSelfPromotion = () => {
+    setShowSelfPromotion(false);
+  };
   const renderBenefitCard = (benefit: FinancialBenefit, index: number) => (
     <View key={`${benefit.type}-${index}`} style={styles.benefitCard}>
       <View style={styles.benefitHeader}>
@@ -100,9 +113,15 @@ export default function BenefitModal({ visible, onClose, benefits }: BenefitModa
                 크레도 점수와 성향을 기반으로 한 개인화 혜택
               </Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Feather name="x" size={24} color="white" />
-            </TouchableOpacity>
+            <View style={styles.headerButtons}>
+              <TouchableOpacity onPress={handleSelfPromotion} style={styles.selfPromotionButton}>
+                <Feather name="user" size={16} color="white" />
+                <Text style={styles.selfPromotionButtonText}>나 어필하기</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                <Feather name="x" size={24} color="white" />
+              </TouchableOpacity>
+            </View>
           </LinearGradient>
 
           {/* 내용 */}
@@ -110,8 +129,8 @@ export default function BenefitModal({ visible, onClose, benefits }: BenefitModa
             {/* 요약 정보 */}
             <View style={styles.summarySection}>
               <View style={styles.summaryCard}>
-                <Text style={styles.summaryTitle}>📊 혜택 점수</Text>
-                <Text style={styles.summaryScore}>{benefits.totalScore}점</Text>
+                <Text style={styles.summaryTitle}>📊 크레도</Text>
+                <Text style={styles.summaryScore}>{credoScore}점</Text>
                 <Text style={styles.summaryDescription}>
                   홀랜드 성향 검사 총점
                 </Text>
@@ -175,6 +194,15 @@ export default function BenefitModal({ visible, onClose, benefits }: BenefitModa
           </ScrollView>
         </View>
       </View>
+
+      {/* 나 어필하기 모달 */}
+      <SelfPromotionModal
+        visible={showSelfPromotion}
+        onClose={closeSelfPromotion}
+        userId={userId || ''}
+        characterLevel={characterLevel}
+        credoScore={credoScore}
+      />
     </Modal>
   );
 }
@@ -213,6 +241,25 @@ const styles = StyleSheet.create({
   modalSubtitle: {
     fontSize: 14,
     color: 'rgba(255, 255, 255, 0.8)',
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  selfPromotionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
+  },
+  selfPromotionButtonText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
   },
   closeButton: {
     padding: 8,

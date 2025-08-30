@@ -5,6 +5,7 @@ import * as SecureStore from 'expo-secure-store';
 export interface ChroniclePost {
   id?: string;
   userId: string;
+  user_id?: string; // 백엔드 응답용 user_id 추가
   type: 'user_post';
   title: string;
   description: string;
@@ -70,17 +71,44 @@ export const saveChroniclePost = async (userId: string, post: Omit<ChroniclePost
  */
 export const getUserChronicles = async (userId: string): Promise<ChroniclePost[]> => {
   try {
-    // 먼저 공개 API로 시도 (인증 없이)
-    const response = await fetch(`${API_ENDPOINTS.CHRONICLE.USER_POSTS.replace('/posts', '/posts/public')}`);
+    // 인증 토큰 가져오기
+    const token = await SecureStore.getItemAsync('authToken');
+    
+    if (!token) {
+      console.log('⚠️ 인증 토큰이 없어서 공개 API 사용');
+      // 토큰이 없으면 공개 API 사용 (테스트용)
+      const response = await fetch(`${API_ENDPOINTS.CHRONICLE.USER_POSTS.replace('/posts', '/posts/public')}`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const posts = await response.json();
+      console.log('✅ 크로니클 포스트 불러옴 (공개 API):', posts.length, '개');
+      
+      // 본인 포스트만 필터링
+      const userPosts = posts.filter((post: any) => post.user_id?.toString() === userId);
+      console.log('🔍 본인 포스트만 필터링:', userPosts.length, '개');
+      
+      return userPosts;
+    }
+
+    // 토큰이 있으면 인증된 API 사용
+    const response = await fetch(`${API_ENDPOINTS.CHRONICLE.USER_POSTS}?user_id=${userId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
     
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
     const posts = await response.json();
-    console.log('✅ 크로니클 포스트 불러옴 (공개):', posts.length, '개');
+    console.log('✅ 크로니클 포스트 불러옴 (인증 API):', posts.length, '개');
     
-    // 백엔드에서 이미 객체로 반환하므로 파싱 불필요
     return posts;
   } catch (error) {
     // error 객체를 안전하게 처리
@@ -153,6 +181,7 @@ export const chroniclePostToActivity = (post: ChroniclePost): any => {
     title: post.title,
     description: post.description,
     timestamp: post.timestamp,
+    user_id: post.user_id, // 사용자 ID 추가
     rewards: {
       credo: post.rewards?.credo || 0,
     },

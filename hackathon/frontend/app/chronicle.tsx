@@ -28,6 +28,7 @@ import { getCurrentUser } from '../services/authService';
 import { financialService, type Transaction } from '../services/financialService';
 import * as SecureStore from 'expo-secure-store';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import { API_ENDPOINTS } from '../config/api';
 
 interface ActivityItem {
   id: number;
@@ -35,6 +36,7 @@ interface ActivityItem {
   title: string;
   description: string;
   timestamp: string;
+  user_id?: string; // 사용자 ID 추가
   rewards: {
     credo: number;
     skillXp?: {
@@ -83,6 +85,12 @@ export default function ChroniclePage() {
   const [uploading, setUploading] = useState(false);
   const [realTransactions, setRealTransactions] = useState<Transaction[]>([]);
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(false);
+  
+  // 현재 사용자 정보 상태
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  
+  // 삭제된 포스트 ID 추적 (새로고침 시에도 제외)
+  const [deletedPostIds, setDeletedPostIds] = useState<Set<string | number>>(new Set());
 
   // 탭 옵션 (전체/내 포스트/활동 기록)
   const tabOptions: TabOption[] = [
@@ -192,13 +200,67 @@ export default function ChroniclePage() {
   ];
 
   useEffect(() => {
+    // 컴포넌트 마운트 시 사용자 정보 로드
+    const loadCurrentUser = async () => {
+      try {
+        const user = await getCurrentUser();
+        console.log('🔍 getCurrentUser() 결과:', user);
+        if (user) {
+          setCurrentUser(user);
+          console.log('👤 현재 사용자 정보 로드됨:', user.id);
+          
+          // 사용자 정보 로드 후 크레도 점수 로드
+          await loadCurrentCredoScore();
+          
+          // 크레도 점수 변경 이벤트 리스너 등록
+          const handleCredoChange = () => {
+            loadCurrentCredoScore();
+          };
+          
+          if (window && window.addEventListener) {
+            window.addEventListener('credoScoreUpdated', handleCredoChange);
+          }
+        } else {
+          console.log('⚠️ 로그인된 사용자 없음');
+        }
+      } catch (error) {
+        console.error('❌ 사용자 정보 로드 실패:', error);
+      }
+    };
+    
+    // 삭제된 포스트 ID 로드
+    const loadDeletedPostIds = async () => {
+      try {
+        const stored = await AsyncStorage.getItem('deletedPostIds');
+        if (stored) {
+          const deletedIds = JSON.parse(stored);
+          setDeletedPostIds(new Set(deletedIds));
+          console.log('🗑️ 저장된 삭제된 포스트 ID 로드:', deletedIds.length, '개');
+        }
+      } catch (error) {
+        console.error('❌ 삭제된 포스트 ID 로드 실패:', error);
+      }
+    };
+    
+    loadCurrentUser();
     loadRealTransactions();
+    loadDeletedPostIds();
   }, []);
+
+  // currentUser가 변경될 때마다 크레도 점수 로드
+  useEffect(() => {
+    if (currentUser && currentUser.id) {
+      console.log('🔄 사용자 변경됨, 크레도 점수 로드:', currentUser.id);
+      loadCurrentCredoScore();
+    }
+  }, [currentUser]);
 
   useEffect(() => {
     // 실제 거래내역이 로딩된 후에 활동 목록 로드
-    loadActivities();
-  }, [realTransactions]);
+    if (currentUser && realTransactions) {
+      loadActivities();
+    }
+  }, [realTransactions, currentUser]);
 
   // 고유 ID 생성 함수
   const generateUniqueId = (): number => {
@@ -224,13 +286,12 @@ export default function ChroniclePage() {
       setIsLoadingPosts(true);
       setErrorMessage(null);
       
-      const currentUser = getCurrentUser();
       if (!currentUser) {
         console.log('⚠️ 로그인된 사용자 없음, 백엔드 API 포스트 불러오기 건너뜀');
         return [];
       }
 
-      const backendPosts = await getUserChronicles(currentUser.uid);
+      const backendPosts = await getUserChronicles(currentUser.id.toString());
       const activityItems = backendPosts.map(chroniclePostToActivity);
       console.log('✅ 백엔드 API에서 사용자 포스트 불러옴:', activityItems.length, '개');
       return activityItems;
@@ -274,6 +335,110 @@ export default function ChroniclePage() {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('❌ 사용자 포스트 저장 실패:', errorMessage);
       Alert.alert('저장 실패', '포스트 저장 중 오류가 발생했습니다.');
+    }
+  };
+
+  // Holland 점수 분석 함수
+  const analyzeChronicleHolland = async (content: string) => {
+    try {
+      const token = await SecureStore.getItemAsync('authToken');
+      if (!token) {
+        throw new Error('인증 토큰이 없습니다.');
+      }
+
+      const response = await fetch(`${API_ENDPOINTS.AI_ADVISOR.ANALYZE_CHRONICLE_HOLLAND}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          content: content,
+          type: 'user_post'
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      if (result.success) {
+        console.log('🧠 Holland 분석 결과:', result.holland_analysis);
+        return result.holland_analysis;
+      } else {
+        throw new Error(result.error || 'Holland 분석 실패');
+      }
+    } catch (error) {
+      console.error('❌ Holland 분석 실패:', error);
+      throw error;
+    }
+  };
+
+  // 크레도 점수 백엔드에 추가 함수
+  const addCredoForActivity = async (activityType: string, description: string, metadata: any) => {
+    try {
+      const token = await SecureStore.getItemAsync('authToken');
+      if (!token) {
+        throw new Error('인증 토큰이 없습니다.');
+      }
+
+      const response = await fetch(`${API_ENDPOINTS.XP.ADD_CREDO}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          activity_type: activityType,
+          description: description,
+          metadata: metadata
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('✅ 크레도 점수 추가 완료:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ 크레도 점수 추가 실패:', error);
+      throw error;
+    }
+  };
+
+  // 크레도 점수 차감 함수 (포스트 삭제 시)
+  const deductCredoForDeletion = async (postId: string, description: string) => {
+    try {
+      const token = await SecureStore.getItemAsync('authToken');
+      if (!token) {
+        throw new Error('인증 토큰이 없습니다.');
+      }
+
+      const response = await fetch(`${API_ENDPOINTS.XP.DEDUCT_FOR_DELETION}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          post_id: postId,
+          description: description
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('✅ 크레도 점수 차감 완료:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ 크레도 점수 차감 실패:', error);
+      throw error;
     }
   };
 
@@ -326,6 +491,13 @@ export default function ChroniclePage() {
     try {
       // 백엔드 API에서 사용자 포스트 불러오기 (실패 시 로컬 백업)
       const userPosts = await loadUserPostsFromBackend();
+      console.log('🔍 로드된 사용자 포스트:', userPosts);
+      
+      // 삭제된 포스트 ID 제외
+      const filteredUserPosts = userPosts.filter(post => !deletedPostIds.has(post.id));
+      if (filteredUserPosts.length !== userPosts.length) {
+        console.log('🗑️ 백엔드 로드 시 삭제된 포스트 제외:', userPosts.length - filteredUserPosts.length, '개');
+      }
       
       // 실제 거래내역을 활동 아이템으로 변환 (안전한 처리 + 고유 ID 할당)
       const transactionActivities = realTransactions && realTransactions.length > 0 
@@ -343,8 +515,25 @@ export default function ChroniclePage() {
         : [];
       
       // Mock 데이터, 사용자 포스트, 실제 거래내역 합치기 (최신순 정렬)
-      const allActivities = [...userPosts, ...transactionActivities, ...mockActivities]
+      let allActivities = [...filteredUserPosts, ...transactionActivities, ...mockActivities]
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      
+      // 삭제된 포스트 ID 제외
+      if (deletedPostIds.size > 0) {
+        const beforeFilter = allActivities.length;
+        allActivities = allActivities.filter(activity => !deletedPostIds.has(activity.id));
+        const afterFilter = allActivities.length;
+        if (beforeFilter !== afterFilter) {
+          console.log('🗑️ 삭제된 포스트 제외:', beforeFilter - afterFilter, '개');
+        }
+      }
+      
+      console.log('🔍 최종 활동 목록:', allActivities.map(a => ({
+        id: a.id,
+        type: a.type,
+        user_id: a.user_id,
+        title: a.title
+      })));
       
       setActivities(allActivities);
       console.log('🔄 전체 활동 로드 완료:', allActivities.length, '개');
@@ -442,13 +631,51 @@ export default function ChroniclePage() {
       };
 
       // 백엔드 API에 포스트 저장
-      const currentUser = getCurrentUser();
       if (currentUser) {
         try {
           const backendPost = activityToChroniclePost(newPost);
-          const savedPostId = await saveChroniclePost(currentUser.uid, backendPost);
+          const savedPostId = await saveChroniclePost(currentUser.id.toString(), backendPost);
           newPost.id = savedPostId; // 백엔드 API에서 생성된 ID 사용
           console.log('✅ 백엔드 API에 포스트 저장 완료:', savedPostId);
+          
+          // Holland 점수 분석 및 업데이트
+          try {
+            const hollandResult = await analyzeChronicleHolland(uploadText || '사진 업로드');
+            console.log('🧠 Holland 점수 분석 완료:', hollandResult);
+            
+            // Holland 분석 결과를 사용자에게 표시
+            if (hollandResult && hollandResult.score_increase > 0) {
+              Alert.alert(
+                'Holland 점수 업데이트! 🎯',
+                `새로운 활동으로 인해 Holland 점수가 +${hollandResult.score_increase}점 증가했습니다!\n\n` +
+                `현재 성향: ${hollandResult.holland_type}\n` +
+                `분석 결과: ${hollandResult.reasoning}`
+              );
+            }
+          } catch (hollandError) {
+            console.error('❌ Holland 분석 실패:', hollandError);
+          }
+          
+          // 크레도 점수 백엔드에 추가
+          try {
+            await addCredoForActivity('post_share', '크로니클 포스트 업로드', {
+              post_id: savedPostId,
+              content: uploadText,
+              has_image: !!selectedImage
+            });
+            console.log('✅ 크레도 점수 백엔드에 추가 완료');
+            
+            // 크레도 점수 즉시 새로고침
+            await refreshCredoScore();
+            
+            // 성공 메시지에 크레도 점수 표시
+            const newCredoScore = currentCredoScore + 5;
+            Alert.alert('업로드 완료! 🎉', `크로니클에 새로운 포스트가 추가되었습니다.\n\n💰 크레도 +5점 (현재: ${newCredoScore}점)`);
+          } catch (credoError) {
+            console.error('❌ 크레도 점수 추가 실패:', credoError);
+            Alert.alert('업로드 완료!', '크로니클에 새로운 포스트가 추가되었습니다. (크레도 점수 추가 실패)');
+          }
+          
         } catch (backendError) {
           console.error('❌ 백엔드 API 저장 실패, 로컬 저장소 사용:', backendError);
           // 백엔드 API 실패 시 로컬 저장소에 백업
@@ -575,6 +802,11 @@ export default function ChroniclePage() {
 
   // 사용자 포스트 삭제
   const deleteUserPost = async (postId: string | number) => {
+    if (!currentUser || !currentUser.id) {
+      Alert.alert('권한 없음', '로그인이 필요합니다.');
+      return;
+    }
+
     Alert.alert(
       '포스트 삭제',
       '정말로 이 포스트를 삭제하시겠습니까?',
@@ -585,27 +817,76 @@ export default function ChroniclePage() {
           style: 'destructive',
           onPress: async () => {
             try {
-                      // 백엔드 API에서 삭제 (문자열 ID인 경우만)
-        if (typeof postId === 'string') {
-          try {
-            await deleteChroniclePost(postId);
-            console.log('✅ 백엔드 API에서 포스트 삭제 완료:', postId);
-          } catch (backendError) {
-            console.error('❌ 백엔드 API 삭제 실패:', backendError);
-            // 백엔드 API 삭제 실패해도 로컬에서는 삭제 진행
+              // 백엔드 API에서 삭제 (문자열 ID인 경우만)
+              if (typeof postId === 'string') {
+                try {
+                  await deleteChroniclePost(postId);
+                  console.log('✅ 백엔드 API에서 포스트 삭제 완료:', postId);
+                  
+                  // 백엔드 삭제 성공 시 삭제된 포스트 ID 추적에 추가
+                  setDeletedPostIds(prev => {
+                    const newSet = new Set([...prev, postId]);
+                    // AsyncStorage에 저장하여 새로고침 시에도 유지
+                    AsyncStorage.setItem('deletedPostIds', JSON.stringify([...newSet]));
+                    return newSet;
+                  });
+                  console.log('🗑️ 삭제된 포스트 ID 추적에 추가:', postId);
+                  
+                  // 삭제된 포스트에 대한 크레도 점수 차감 (백엔드에 반영)
+                  try {
+                    await deductCredoForDeletion(postId, '크로니클 포스트 삭제');
+                    console.log('✅ 삭제된 포스트 크레도 점수 차감 완료');
+                    
+                    // 크레도 점수 새로고침
+                    await refreshCredoScore();
+                  } catch (credoError) {
+                    console.error('❌ 크레도 점수 차감 실패:', credoError);
+                  }
+                  
+                  // 백엔드에서 최신 데이터를 다시 가져와서 동기화
+                  console.log('🔄 백엔드 삭제 성공, 최신 데이터 동기화 중...');
+                  
+                  // 즉시 백엔드에서 최신 데이터 로드
+                  try {
+                                      // 백엔드 커밋 완료 대기 후 데이터 로드
+                  await new Promise(resolve => setTimeout(resolve, 200));
+                  
+                  // 즉시 UI에서 삭제된 포스트 제거
+                  setActivities(prevActivities => 
+                    prevActivities.filter(activity => activity.id !== postId)
+                  );
+                  
+                  // 백엔드에서 최신 데이터 로드
+                  await loadActivities();
+                  console.log('✅ 삭제 후 데이터 동기화 완료');
+                  } catch (error) {
+                    console.error('❌ 삭제 후 데이터 동기화 실패:', error);
+                  }
+                  
+                  await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  console.log('🗑️ 포스트 삭제 완료:', postId);
+                  
+                  // 성공 메시지에 크레도 점수 표시
+                  const newCredoScore = currentCredoScore - 2;
+                  Alert.alert('삭제 완료 🗑️', `포스트가 성공적으로 삭제되었습니다.\n\n💰 크레도 -2점 (현재: ${newCredoScore}점)`);
+                  
+                } catch (backendError) {
+                  console.error('❌ 백엔드 API 삭제 실패:', backendError);
+                  Alert.alert('삭제 실패', '서버에서 포스트를 삭제할 수 없습니다. 다시 시도해주세요.');
+                  return; // 백엔드 실패 시 로컬 삭제도 중단
                 }
+              } else {
+                // 숫자 ID인 경우 (로컬 활동만)
+                const updatedActivities = activities.filter(activity => activity.id !== postId);
+                setActivities(updatedActivities);
+                
+                // 로컬 저장소도 업데이트 (백업용)
+                const userPosts = updatedActivities.filter(activity => activity.type === 'user_post');
+                await saveUserPosts(userPosts);
+                
+                await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                console.log('🗑️ 로컬 포스트 삭제 완료:', postId);
               }
-
-              // 활동 목록에서 해당 포스트 제거
-              const updatedActivities = activities.filter(activity => activity.id !== postId);
-              setActivities(updatedActivities);
-
-              // 로컬 저장소도 업데이트 (백업용)
-              const userPosts = updatedActivities.filter(activity => activity.type === 'user_post');
-              await saveUserPosts(userPosts);
-
-              await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              console.log('🗑️ 포스트 삭제 완료:', postId);
             } catch (error) {
               console.error('❌ 포스트 삭제 실패:', error);
               Alert.alert('삭제 실패', '포스트 삭제 중 오류가 발생했습니다.');
@@ -624,6 +905,53 @@ export default function ChroniclePage() {
       .reduce((total, activity) => total + activity.rewards.credo, 0);
   };
 
+  // 현재 크레도 점수 상태
+  const [currentCredoScore, setCurrentCredoScore] = useState(0);
+
+  // 현재 크레도 점수 로드
+  const loadCurrentCredoScore = async () => {
+    console.log('🔍 loadCurrentCredoScore 호출됨, currentUser:', currentUser);
+    
+    if (!currentUser) {
+      console.log('⚠️ currentUser가 없어서 크레도 점수 로드 건너뜀');
+      return;
+    }
+    
+    try {
+      console.log('🌐 크레도 점수 API 호출:', `${API_ENDPOINTS.XP.PROGRESS}/${currentUser.id}`);
+      const response = await fetch(`${API_ENDPOINTS.XP.PROGRESS}/${currentUser.id}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log('📡 API 응답 상태:', response.status);
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📊 API 응답 데이터:', data);
+        setCurrentCredoScore(data.current_credo || 0);
+        console.log('✅ 현재 크레도 점수 로드 완료:', data.current_credo);
+        
+        // 크레도 점수 변경 이벤트 발생
+        if (window && window.dispatchEvent) {
+          window.dispatchEvent(new CustomEvent('credoScoreUpdated', { 
+            detail: { score: data.current_credo || 0 } 
+          }));
+        }
+      } else {
+        console.log('❌ API 응답 오류:', response.status, response.statusText);
+      }
+    } catch (error) {
+      console.error('❌ 크레도 점수 로드 실패:', error);
+    }
+  };
+
+  // 크레도 점수 새로고침
+  const refreshCredoScore = async () => {
+    await loadCurrentCredoScore();
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
@@ -631,7 +959,9 @@ export default function ChroniclePage() {
       <Animated.View entering={FadeInUp.delay(100)} style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>크로니클</Text>
-          <Text style={styles.headerSubtitle}>오늘 획득한 Credo: {getTotalCredoToday()}</Text>
+          <Text style={styles.headerSubtitle}>
+            현재 크레도: {currentCredoScore}점 | 오늘 획득: +{getTotalCredoToday()}
+          </Text>
         </View>
         <View style={styles.headerStats}>
           <Feather name="award" size={20} color="#F59E0B" />
@@ -807,8 +1137,8 @@ export default function ChroniclePage() {
                     <Feather name="zap" size={14} color="#F59E0B" />
                     <Text style={styles.credoText}>+{activity.rewards.credo}</Text>
                   </View>
-                  {/* 사용자 포스트인 경우 삭제 버튼 표시 */}
-                  {activity.type === 'user_post' && (
+                  {/* 사용자 포스트인 경우 삭제 버튼 표시 (본인 포스트만) */}
+                  {activity.type === 'user_post' && currentUser && currentUser.id && (
                     <TouchableOpacity 
                       style={styles.deleteButton}
                       onPress={() => deleteUserPost(activity.id)}

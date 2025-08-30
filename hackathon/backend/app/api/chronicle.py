@@ -103,8 +103,12 @@ async def create_chronicle_post(
 ):
     """새로운 크로니클 포스트 생성"""
     try:
-        # JSON 데이터를 문자열로 변환
-        rewards = json.dumps(post_data.get("rewards", {})) if post_data.get("rewards") else "{}"
+        # JSON 데이터를 문자열로 변환 (기본 크레도 점수 포함)
+        default_rewards = {"credo": 5}  # 기본 크레도 점수
+        if post_data.get("rewards"):
+            default_rewards.update(post_data.get("rewards"))
+        
+        rewards = json.dumps(default_rewards)
         user_content = json.dumps(post_data.get("user_content", {})) if post_data.get("user_content") else "{}"
         
         new_post = ChroniclePost(
@@ -112,7 +116,7 @@ async def create_chronicle_post(
             type=post_data.get("type", "user_post"),
             title=post_data.get("title", ""),
             description=post_data.get("description"),
-            rewards=rewards,  # JSON 문자열로 저장
+            rewards=rewards,  # JSON 문자열로 저장 (크레도 점수 포함)
             user_content=user_content  # JSON 문자열로 저장
         )
         

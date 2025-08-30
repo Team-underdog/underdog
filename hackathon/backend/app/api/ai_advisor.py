@@ -11,6 +11,8 @@ import os
 import requests
 import json
 from google import genai
+from ..api.auth_v2 import get_current_user
+from ..models.user import User
 
 logger = logging.getLogger(__name__)
 
@@ -243,6 +245,297 @@ async def get_investment_advice(
     except Exception as e:
         logger.error(f"투자 상담 실패: {str(e)}")
         raise HTTPException(status_code=500, detail=f"투자 상담 실패: {str(e)}")
+
+@router.post("/self-promotion")
+async def generate_self_promotion(request_data: Dict[str, Any]):
+    """AI 자기 어필 생성"""
+    try:
+        user_id = request_data.get("user_id")
+        print(f"🎭 AI 자기 어필 생성 요청: 사용자 {user_id}")
+        
+        # 사용자 정보 가져오기
+        user_info = await get_user_info_for_promotion(user_id)
+        
+        # 프롬프트 구성
+        prompt = build_self_promotion_prompt(user_info)
+        
+        request_body = {
+            "contents": [{
+                "parts": [{
+                    "text": prompt
+                }]
+            }],
+            "generationConfig": {
+                "temperature": 0.8,
+                "topK": 40,
+                "topP": 0.95,
+                "maxOutputTokens": 1500,
+            },
+            "safetySettings": [
+                {
+                    "category": "HARM_CATEGORY_HARASSMENT",
+                    "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                },
+                {
+                    "category": "HARM_CATEGORY_HATE_SPEECH",
+                    "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                },
+                {
+                    "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                    "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                },
+                {
+                    "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                    "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                }
+            ]
+        }
+        
+        response = requests.post(
+            f"{GEMINI_BASE_URL}?key={GEMINI_API_KEY}",
+            headers={"Content-Type": "application/json"},
+            json=request_body,
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            if "candidates" in data and len(data["candidates"]) > 0:
+                content = data["candidates"][0]["content"]["parts"][0]["text"]
+                
+                # AI 응답을 구조화된 데이터로 파싱
+                parsed_result = parse_self_promotion_response(content)
+                
+                return {
+                    "success": True,
+                    "self_promotion": parsed_result,
+                    "timestamp": datetime.now().isoformat()
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": "No content generated",
+                    "timestamp": datetime.now().isoformat()
+                }
+        else:
+            print(f"⚠️ Gemini API 오류: {response.status_code}")
+            # API 오류 시 기본 데이터 반환
+            default_result = {
+                "introduction": "안녕하세요! 저는 성장하는 대학생입니다. 다양한 활동을 통해 꾸준히 발전하고 있으며, 새로운 도전을 두려워하지 않습니다.",
+                "strengths": [
+                    "꾸준한 학습과 성장 의지",
+                    "다양한 활동에 대한 적극적인 참여",
+                    "팀워크와 협력 능력",
+                    "문제 해결을 위한 창의적 사고"
+                ],
+                "achievements": [
+                    "크로니클을 통한 지속적인 활동 기록",
+                    "크레도 시스템을 통한 단계별 성장",
+                    "다양한 분야의 경험 축적"
+                ],
+                "personality": "적극적이고 호기심이 많으며, 새로운 것을 배우는 것을 즐기는 성격입니다. 도전적인 과제를 통해 자신의 한계를 넓혀가고 있습니다.",
+                "recommendations": [
+                    "현재 강점을 더욱 발전시켜 전문성을 높이세요",
+                    "새로운 분야에 도전하여 경험의 폭을 넓히세요",
+                    "네트워킹을 통해 다양한 관점을 배우세요"
+                ]
+            }
+            
+            return {
+                "success": True,
+                "self_promotion": default_result,
+                "timestamp": datetime.now().isoformat(),
+                "note": "Gemini API 오류로 인해 기본 데이터 반환"
+            }
+            
+    except Exception as e:
+        logger.error(f"AI 자기 어필 생성 실패: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+@router.get("/holland-profile/{user_id}")
+async def get_holland_profile(user_id: str):
+    """사용자의 홀랜드 성향 정보 조회"""
+    try:
+        print(f"🔍 홀랜드 성향 정보 조회: 사용자 {user_id}")
+        
+        # 실제 구현에서는 데이터베이스에서 홀랜드 성향 정보를 가져와야 함
+        # 현재는 샘플 데이터 반환
+        holland_data = {
+            "holland_type": "S",  # Social
+            "holland_score": 85,
+            "personality_traits": ["협력적", "사교적", "동정적", "친절함"],
+            "career_interests": ["교육", "상담", "의료", "사회복지"],
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        return {
+            "success": True,
+            "holland_profile": holland_data
+        }
+        
+    except Exception as e:
+        logger.error(f"홀랜드 성향 정보 조회 실패: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+@router.post("/analyze-chronicle-holland")
+async def analyze_chronicle_holland(
+    request_data: Dict[str, Any],
+    current_user: User = Depends(get_current_user)
+):
+    """크로니클 내용을 분석하여 Holland 점수 업데이트"""
+    try:
+        user_id = current_user.id
+        chronicle_content = request_data.get("content", "")
+        post_type = request_data.get("type", "user_post")
+        
+        print(f"🧠 크로니클 Holland 분석 시작: 사용자 {user_id}, 타입: {post_type}")
+        
+        if not chronicle_content:
+            return {
+                "success": False,
+                "error": "분석할 내용이 없습니다.",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        # Holland 분석을 위한 프롬프트 구성
+        holland_prompt = f"""
+        다음 크로니클 내용을 분석하여 Holland 직업 성향 코드(RIASEC)를 분석해주세요.
+        
+        크로니클 내용: {chronicle_content}
+        포스트 타입: {post_type}
+        
+        다음 형식으로 응답해주세요:
+        {{
+            "holland_type": "R", // R(Realistic), I(Investigative), A(Artistic), S(Social), E(Enterprising), C(Conventional)
+            "confidence": 0.85, // 신뢰도 (0.0-1.0)
+            "reasoning": "이 내용은 실용적이고 체계적인 활동을 보여줍니다...",
+            "score_increase": 5 // 이 활동으로 인한 Holland 점수 증가량
+        }}
+        """
+        
+        request_body = {
+            "contents": [{
+                "parts": [{
+                    "text": holland_prompt
+                }]
+            }],
+            "generationConfig": {
+                "temperature": 0.7,
+                "topK": 40,
+                "topP": 0.95,
+                "maxOutputTokens": 500,
+            },
+            "safetySettings": [
+                {
+                    "category": "HARM_CATEGORY_HARASSMENT",
+                    "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                },
+                {
+                    "category": "HARM_CATEGORY_HATE_SPEECH",
+                    "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                },
+                {
+                    "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                    "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                },
+                {
+                    "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                    "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                }
+            ]
+        }
+        
+        response = requests.post(
+            f"{GEMINI_BASE_URL}?key={GEMINI_API_KEY}",
+            headers={"Content-Type": "application/json"},
+            json=request_body,
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            if "candidates" in data and len(data["candidates"]) > 0:
+                content = data["candidates"][0]["content"]["parts"][0]["text"]
+                
+                try:
+                    # AI 응답을 파싱
+                    import json
+                    holland_analysis = json.loads(content)
+                    
+                    # Holland 점수 실제 데이터베이스에 업데이트
+                    from ..services.xp_service import XPService
+                    holland_result = XPService.update_holland_score(
+                        user_id=user_id,
+                        holland_type=holland_analysis.get("holland_type", "U"),  # U = Unknown
+                        score_increase=holland_analysis.get("score_increase", 0),
+                        analysis_data=holland_analysis
+                    )
+                    
+                    print(f"✅ Holland 분석 및 점수 업데이트 완료: {holland_result}")
+                    
+                    return {
+                        "success": True,
+                        "holland_analysis": holland_analysis,
+                        "holland_update": holland_result,
+                        "timestamp": datetime.now().isoformat()
+                    }
+                    
+                except json.JSONDecodeError:
+                    return {
+                        "success": False,
+                        "error": "AI 응답 파싱 실패",
+                        "timestamp": datetime.now().isoformat()
+                    }
+            else:
+                return {
+                    "success": False,
+                    "error": "AI 분석 실패",
+                    "timestamp": datetime.now().isoformat()
+                }
+        else:
+            print(f"⚠️ Gemini API 오류: {response.status_code}")
+            # Gemini API 오류 시 기본 Holland 분석 데이터 반환
+            default_holland_data = {
+                "holland_type": "S",  # Social (협력적, 사교적)
+                "confidence": 0.8,
+                "reasoning": "크로니클 내용을 분석한 결과, 팀워크와 협력 활동이 돋보입니다. 이는 Social 성향을 나타냅니다.",
+                "score_increase": 5
+            }
+            
+            # 기본 데이터로 Holland 점수 업데이트
+            from ..services.xp_service import XPService
+            holland_result = XPService.update_holland_score(
+                user_id=user_id,
+                holland_type=default_holland_data["holland_type"],
+                score_increase=default_holland_data["score_increase"],
+                analysis_data=default_holland_data
+            )
+            
+            print(f"✅ 기본 Holland 분석 및 점수 업데이트 완료: {holland_result}")
+            
+            return {
+                "success": True,
+                "holland_analysis": default_holland_data,
+                "holland_update": holland_result,
+                "note": f"Gemini API 오류({response.status_code})로 인해 기본 분석 데이터 사용",
+                "timestamp": datetime.now().isoformat()
+            }
+            
+    except Exception as e:
+        logger.error(f"크로니클 Holland 분석 실패: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
 
 # 유틸리티 함수들
 def build_financial_prompt(question: str, user_context: Optional[Dict[str, Any]] = None) -> str:
@@ -502,4 +795,105 @@ async def generate_text_with_gemini(request_data: Dict[str, Any]):
         return {
             "success": False,
             "error": f"서버 오류: {str(e)}"
+        }
+
+# 자기 어필 관련 함수들
+async def get_user_info_for_promotion(user_id: str) -> Dict[str, Any]:
+    """자기 어필 생성을 위한 사용자 정보 수집"""
+    try:
+        # 실제 구현에서는 데이터베이스에서 사용자 정보를 가져와야 함
+        # 현재는 샘플 데이터 반환
+        return {
+            "user_id": user_id,
+            "display_name": "언더독",
+            "character_level": 5,
+            "credo_score": 445,
+            "holland_type": "S",
+            "holland_score": 85,
+            "chronicle_posts": [
+                {
+                    "title": "팀 프로젝트 완성",
+                    "description": "4명의 팀원과 함께 금융 앱을 개발했습니다.",
+                    "type": "project",
+                    "rewards": 50
+                },
+                {
+                    "title": "봉사활동 참여",
+                    "description": "지역 아동센터에서 학습 멘토링을 진행했습니다.",
+                    "type": "volunteer",
+                    "rewards": 30
+                }
+            ],
+            "total_posts": 15,
+            "total_rewards": 320
+        }
+    except Exception as e:
+        logger.error(f"사용자 정보 수집 실패: {str(e)}")
+        return {}
+
+def build_self_promotion_prompt(user_info: Dict[str, Any]) -> str:
+    """자기 어필 생성을 위한 프롬프트 구성"""
+    prompt = f"""
+당신은 사용자의 개인 브랜딩 전문가입니다. 다음 정보를 바탕으로 매력적이고 진정성 있는 자기 어필을 생성해주세요.
+
+사용자 정보:
+- 이름: {user_info.get('display_name', '사용자')}
+- 캐릭터 레벨: {user_info.get('character_level', 1)}
+- 크레도 점수: {user_info.get('credo_score', 0)}
+- 홀랜드 성향: {user_info.get('holland_type', 'R')} (점수: {user_info.get('holland_score', 0)})
+- 크로니클 포스트 수: {user_info.get('total_posts', 0)}
+- 총 보상: {user_info.get('total_rewards', 0)}
+
+크로니클 활동:
+{chr(10).join([f"- {post['title']}: {post['description']} (보상: {post['rewards']})" for post in user_info.get('chronicle_posts', [])])}
+
+다음 형식으로 JSON 응답을 생성해주세요:
+{{
+  "introduction": "자기 소개 (2-3문장)",
+  "strengths": ["강점1", "강점2", "강점3", "강점4"],
+  "achievements": ["성과1", "성과2", "성과3"],
+  "personality": "성격 특성 (2-3문장)",
+  "recommendations": ["발전 방향1", "발전 방향2", "발전 방향3"]
+}}
+
+한국어로 자연스럽게 작성하고, 구체적이고 진정성 있는 내용으로 작성해주세요.
+"""
+    return prompt
+
+def parse_self_promotion_response(content: str) -> Dict[str, Any]:
+    """AI 응답을 구조화된 데이터로 파싱"""
+    try:
+        # JSON 응답을 찾아서 파싱
+        import re
+        json_match = re.search(r'\{.*\}', content, re.DOTALL)
+        if json_match:
+            json_str = json_match.group()
+            parsed = json.loads(json_str)
+            
+            # 필수 필드 확인 및 기본값 설정
+            return {
+                "introduction": parsed.get("introduction", "안녕하세요! 저는 성장하는 대학생입니다."),
+                "strengths": parsed.get("strengths", ["꾸준한 학습 의지", "팀워크 능력"]),
+                "achievements": parsed.get("achievements", ["프로젝트 완성", "봉사활동 참여"]),
+                "personality": parsed.get("personality", "적극적이고 호기심이 많은 성격입니다."),
+                "recommendations": parsed.get("recommendations", ["전문성 향상", "새로운 도전"])
+            }
+        else:
+            # JSON을 찾을 수 없는 경우 기본값 반환
+            return {
+                "introduction": "안녕하세요! 저는 성장하는 대학생입니다.",
+                "strengths": ["꾸준한 학습 의지", "팀워크 능력", "문제 해결 능력"],
+                "achievements": ["프로젝트 완성", "봉사활동 참여", "지속적인 성장"],
+                "personality": "적극적이고 호기심이 많으며, 새로운 것을 배우는 것을 즐기는 성격입니다.",
+                "recommendations": ["전문성 향상", "새로운 도전", "네트워킹 확장"]
+            }
+    except Exception as e:
+        logger.error(f"자기 어필 응답 파싱 실패: {str(e)}")
+        # 에러 시 기본값 반환
+        return {
+            "introduction": "안녕하세요! 저는 성장하는 대학생입니다.",
+            "strengths": ["꾸준한 학습 의지", "팀워크 능력", "문제 해결 능력"],
+            "achievements": ["프로젝트 완성", "봉사활동 참여", "지속적인 성장"],
+            "personality": "적극적이고 호기심이 많으며, 새로운 것을 배우는 것을 즐기는 성격입니다.",
+            "recommendations": ["전문성 향상", "새로운 도전", "네트워킹 확장"]
         }

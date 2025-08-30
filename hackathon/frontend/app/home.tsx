@@ -481,14 +481,7 @@ export default function CampusCredoHome() {
         currentLevel={xpData.currentLevel}
       />
 
-              {/* 테스트 버튼 */}
-        <TouchableOpacity 
-          style={styles.testButton}
-          onPress={() => router.push('/test-dashboard')}
-        >
-          <Feather name="settings" size={20} color="white" />
-          <Text style={styles.testButtonText}>🧪 테스트 대시보드</Text>
-        </TouchableOpacity>
+
 
         {/* 하단 네비게이션 */}
         <CampusCredoBottomNav />
@@ -1247,25 +1240,5 @@ const styles = StyleSheet.create({
   pageDotActive: {
     backgroundColor: '#3B82F6',
   },
-  testButton: {
-    position: 'absolute',
-    bottom: 160,
-    right: 20,
-    backgroundColor: '#10b981',
-    padding: 15,
-    borderRadius: 30,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  testButtonText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
-  },
+
 });

@@ -51,6 +51,23 @@ async def get_my_progress(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"진행률 조회 실패: {str(e)}")
 
+@router.post("/xp/deduct-for-deletion")
+async def deduct_credo_for_deletion(
+    post_id: str,
+    description: str = "크로니클 포스트 삭제",
+    current_user: User = Depends(get_current_user)
+):
+    """포스트 삭제 시 크레도 점수 차감"""
+    try:
+        response = XPService.deduct_credo_for_post_deletion(
+            user_id=current_user.id,
+            post_id=post_id,
+            description=description
+        )
+        return response
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"크레도 점수 차감 실패: {str(e)}")
+
 @router.get("/xp/leaderboard", response_model=List[dict])
 async def get_leaderboard(limit: int = 10, session: Session = Depends(get_session)):
     """크레도 점수 기반 리더보드"""

@@ -728,7 +728,7 @@ class SkillTreeService {
   async runAIAnalysis(): Promise<AIAnalysis> {
     try {
       // 실제 AI API 호출
-      const response = await fetch(API_ENDPOINTS.HEALTH.STATUS + '/ai-analysis', {
+      const response = await fetch(API_ENDPOINTS.AI_ADVISOR.GENERATE, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -3,6 +3,8 @@
  * XP는 보조 지표로, 크레도가 주요 성장 지표입니다.
  */
 
+import { API_ENDPOINTS } from '../config/api';
+
 export interface CredoData {
   currentCredo: number;
   currentLevel: number;
@@ -149,7 +151,7 @@ export class XPService {
   public async fetchCredoData(userId: string): Promise<CredoData> {
     try {
       const token = await this.getAuthToken();
-      const response = await fetch(`http://localhost:8000/api/xp/progress/${userId}`, {
+      const response = await fetch(`${API_ENDPOINTS.XP.PROGRESS}/${userId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -192,7 +194,7 @@ export class XPService {
   ): Promise<CredoData | null> {
     try {
       const token = await this.getAuthToken();
-      const response = await fetch(`http://localhost:8000/api/xp/add`, {
+      const response = await fetch(API_ENDPOINTS.XP.ADD_CREDO, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

@@ -33,6 +33,11 @@ class User(SQLModel, table=True):
     current_department: Optional[str] = Field(default=None, description="현재 전공/학과")
     grade_level: Optional[int] = Field(default=None, description="학년")
     
+    # Holland 성향 정보
+    holland_type: Optional[str] = Field(default=None, description="Holland 직업 성향 코드 (RIASEC)")
+    holland_score: Optional[int] = Field(default=0, description="Holland 성향 점수")
+    holland_analysis_date: Optional[datetime] = Field(default=None, description="마지막 Holland 분석 날짜")
+    
     # 계정 상태
     is_active: bool = Field(default=True, description="계정 활성화 여부")
     is_verified: bool = Field(default=False, description="이메일 인증 여부")

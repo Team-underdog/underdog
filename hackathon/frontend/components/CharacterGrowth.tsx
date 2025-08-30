@@ -114,13 +114,13 @@ export default function CharacterGrowth({ userId, onSettingsPress }: CharacterGr
   
   // 크레도 동기화 및 실시간 업데이트
   useEffect(() => {
-    // 사용자 ID가 있으면 CredoService에 설정
-    if (userId) {
-      credoService.setUserId(userId);
-    }
+      // 사용자 ID가 있으면 CredoService에 설정
+  if (userId) {
+    credoService.setUserId(userId).catch(console.error);
+  }
     
     // 초기 크레도 데이터 로드
-    loadCredoData();
+    loadCredoData().catch(console.error);
     
     // 크레도 변경 이벤트 리스너 등록
     const handleCredoChange = (credoData: any) => {
@@ -136,8 +136,9 @@ export default function CharacterGrowth({ userId, onSettingsPress }: CharacterGr
   }, [userId]); // userId가 변경될 때마다 실행
   
   // 크레도 데이터 로드 및 캐릭터 상태 업데이트
-  const loadCredoData = useCallback(() => {
+  const loadCredoData = useCallback(async () => {
     try {
+      await credoService.loadCredoData();
       const credoStats = credoService.getCredoStats();
       updateCharacterFromCredo(credoStats);
     } catch (error) {
@@ -1205,6 +1206,9 @@ export default function CharacterGrowth({ userId, onSettingsPress }: CharacterGr
           visible={showBenefitModal}
           onClose={() => setShowBenefitModal(false)}
           benefits={benefits}
+          userId={userId}
+          characterLevel={currentLevel}
+          credoScore={currentCredo}
         />
       )}
     </>

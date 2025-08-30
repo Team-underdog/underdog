@@ -5,6 +5,7 @@ from sqlmodel import Session, select
 from datetime import datetime, timedelta
 import jwt
 import logging
+import random
 
 from ..core.config import settings
 from ..models.user import (
@@ -15,6 +16,7 @@ from ..models.user import (
     SignupResponse
 )
 from ..db.session import get_session
+from ..models.financial import BankAccount, Transaction, CreditScore
 
 logger = logging.getLogger(__name__)
 
@@ -306,6 +308,15 @@ class UserService:
             self.db.commit()
             self.db.refresh(new_user)
             
+            # 사용자 가입 시 자동으로 기본 계좌 및 거래 내역 생성
+            try:
+                logger.info(f"🏦 사용자 {new_user.id} 기본 계좌 자동 생성 시작")
+                account_setup_result = UserAccountSetupService.setup_user_financial_accounts(new_user.id, self.db)
+                logger.info(f"✅ 계좌 자동 생성 완료: {account_setup_result['message']}")
+            except Exception as account_error:
+                logger.error(f"⚠️ 계좌 자동 생성 실패 (사용자 생성은 성공): {account_error}")
+                # 계좌 생성 실패해도 사용자 생성은 성공으로 처리
+            
             user_response = UserResponse(
                 id=new_user.id,
                 email=new_user.email,
@@ -421,6 +432,15 @@ class UserService:
             self.db.commit()
             self.db.refresh(new_user)
             
+            # 사용자 가입 시 자동으로 기본 계좌 및 거래 내역 생성
+            try:
+                logger.info(f"🏦 사용자 {new_user.id} 기본 계좌 자동 생성 시작")
+                account_setup_result = UserAccountSetupService.setup_user_financial_accounts(new_user.id, self.db)
+                logger.info(f"✅ 계좌 자동 생성 완료: {account_setup_result['message']}")
+            except Exception as account_error:
+                logger.error(f"⚠️ 계좌 자동 생성 실패 (사용자 생성은 성공): {account_error}")
+                # 계좌 생성 실패해도 사용자 생성은 성공으로 처리
+            
             user_response = UserResponse(
                 id=new_user.id,
                 email=new_user.email,
@@ -511,3 +531,202 @@ class JWTService:
         return db.exec(
             select(User).where(User.id == user_id)
         ).first()
+
+
+class UserAccountSetupService:
+    """사용자 가입 시 자동 계좌 생성 서비스"""
+    
+    @staticmethod
+    def create_default_accounts(user_id: int, db: Session) -> List[BankAccount]:
+        """사용자 가입 시 기본 계좌 자동 생성"""
+        try:
+            logger.info(f"🏦 사용자 {user_id} 기본 계좌 생성 시작")
+            
+            # 기본 계좌 타입들
+            default_accounts = [
+                {
+                    "bank_name": "신한은행",
+                    "account_type": "수시입출금",
+                    "account_name": "신한은행 입출금 통장",
+                    "balance": 1000000,  # 100만원 초기 잔액
+                    "description": "일상적인 입출금을 위한 기본 통장"
+                },
+                {
+                    "bank_name": "신한은행",
+                    "account_type": "예금",
+                    "account_name": "신한은행 정기예금",
+                    "balance": 5000000,  # 500만원 초기 잔액
+                    "description": "안전한 자산 증식을 위한 정기예금"
+                },
+                {
+                    "bank_name": "신한카드",
+                    "account_type": "신용카드",
+                    "account_name": "신한카드 체크카드",
+                    "balance": 0,  # 신용카드는 잔액 없음
+                    "description": "일상 결제를 위한 체크카드"
+                }
+            ]
+            
+            accounts = []
+            for i, account_info in enumerate(default_accounts):
+                # 계좌번호 생성 (신한은행 형식: 110-XXX-XXXXXX)
+                if account_info["bank_name"] == "신한은행":
+                    account_number = f"110-{random.randint(100, 999)}-{random.randint(100000, 999999)}"
+                else:
+                    account_number = f"{random.randint(1000000000000000, 9999999999999999)}"
+                
+                account = BankAccount(
+                    user_id=user_id,
+                    account_number=account_number,
+                    bank_name=account_info["bank_name"],
+                    account_type=account_info["account_type"],
+                    account_name=account_info["account_name"],
+                    balance=account_info["balance"],
+                    currency="KRW",
+                    is_active=True,
+                    created_date=datetime.now(),
+                    last_transaction_date=datetime.now(),
+                    created_at=datetime.now(),
+                    updated_at=datetime.now()
+                )
+                
+                accounts.append(account)
+                db.add(account)
+                logger.info(f"✅ 계좌 생성: {account_info['bank_name']} {account_info['account_type']}")
+            
+            # 신용점수 초기화
+            credit_score = CreditScore(
+                user_id=user_id,
+                score=700,  # 기본 신용점수
+                grade="B",
+                last_updated=datetime.now(),
+                credit_limit=5000000,  # 500만원 신용한도
+                used_credit=0,
+                created_at=datetime.now(),
+                updated_at=datetime.now()
+            )
+            db.add(credit_score)
+            
+            db.commit()
+            logger.info(f"✅ 사용자 {user_id} 기본 계좌 및 신용점수 생성 완료")
+            return accounts
+            
+        except Exception as e:
+            logger.error(f"❌ 기본 계좌 생성 실패: {e}")
+            db.rollback()
+            raise e
+    
+    @staticmethod
+    def create_initial_transactions(accounts: List[BankAccount], db: Session) -> List[Transaction]:
+        """초기 거래 내역 생성 (월급, 용돈 등)"""
+        try:
+            logger.info(f"💰 초기 거래 내역 생성 시작")
+            
+            transactions = []
+            current_date = datetime.now()
+            
+            for account in accounts:
+                if account.account_type == "수시입출금":
+                    # 월급 입금
+                    salary_transaction = Transaction(
+                        account_id=account.id,
+                        transaction_type="입금",
+                        amount=3000000,  # 300만원 월급
+                        balance_after=account.balance + 3000000,
+                        description="월급",
+                        category="수입",
+                        transaction_date=current_date - timedelta(days=5),
+                        created_at=current_date
+                    )
+                    transactions.append(salary_transaction)
+                    db.add(salary_transaction)
+                    
+                    # 용돈 출금
+                    allowance_transaction = Transaction(
+                        account_id=account.id,
+                        transaction_type="출금",
+                        amount=-500000,  # 50만원 용돈
+                        balance_after=account.balance + 3000000 - 500000,
+                        description="용돈",
+                        category="생활비",
+                        transaction_date=current_date - timedelta(days=3),
+                        created_at=current_date
+                    )
+                    transactions.append(allowance_transaction)
+                    db.add(allowance_transaction)
+                    
+                    # 교통비
+                    transport_transaction = Transaction(
+                        account_id=account.id,
+                        transaction_type="출금",
+                        amount=-100000,  # 10만원 교통비
+                        balance_after=account.balance + 3000000 - 500000 - 100000,
+                        description="교통비",
+                        category="교통비",
+                        transaction_date=current_date - timedelta(days=1),
+                        created_at=current_date
+                    )
+                    transactions.append(transport_transaction)
+                    db.add(transport_transaction)
+                    
+                elif account.account_type == "예금":
+                    # 이자 입금
+                    interest_transaction = Transaction(
+                        account_id=account.id,
+                        transaction_type="입금",
+                        amount=50000,  # 5만원 이자
+                        balance_after=account.balance + 50000,
+                        description="이자지급",
+                        category="이자",
+                        transaction_date=current_date - timedelta(days=2),
+                        created_at=current_date
+                    )
+                    transactions.append(interest_transaction)
+                    db.add(interest_transaction)
+            
+            db.commit()
+            logger.info(f"✅ 초기 거래 내역 {len(transactions)}건 생성 완료")
+            return transactions
+            
+        except Exception as e:
+            logger.error(f"❌ 초기 거래 내역 생성 실패: {e}")
+            db.rollback()
+            raise e
+    
+    @staticmethod
+    def setup_user_financial_accounts(user_id: int, db: Session) -> Dict[str, Any]:
+        """사용자 가입 시 전체 금융 계좌 설정"""
+        try:
+            logger.info(f"🏦 사용자 {user_id} 금융 계좌 전체 설정 시작")
+            
+            # 1. 기본 계좌 생성
+            accounts = UserAccountSetupService.create_default_accounts(user_id, db)
+            
+            # 2. 초기 거래 내역 생성
+            transactions = UserAccountSetupService.create_initial_transactions(accounts, db)
+            
+            # 3. 계좌 잔액 업데이트 (거래 내역 반영)
+            for account in accounts:
+                account_transactions = [t for t in transactions if t.account_id == account.id]
+                if account_transactions:
+                    # 거래 내역의 마지막 잔액으로 업데이트
+                    last_transaction = max(account_transactions, key=lambda x: x.transaction_date)
+                    account.balance = last_transaction.balance_after
+                    account.last_transaction_date = last_transaction.transaction_date
+                    account.updated_at = datetime.now()
+            
+            db.commit()
+            
+            result = {
+                "accounts": accounts,
+                "transactions": transactions,
+                "message": "사용자 금융 계좌 설정 완료"
+            }
+            
+            logger.info(f"✅ 사용자 {user_id} 금융 계좌 전체 설정 완료")
+            return result
+            
+        except Exception as e:
+            logger.error(f"❌ 사용자 금융 계좌 설정 실패: {e}")
+            db.rollback()
+            raise e

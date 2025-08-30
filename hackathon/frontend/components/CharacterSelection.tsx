@@ -42,7 +42,7 @@ export const CharacterSelection: React.FC<CharacterSelectionProps> = ({
   };
 
   const getLevelRequirement = (level: number) => {
-    // 레벨별 XP 요구사항 (예시)
+    // 레벨별 크레도 요구사항 (예시)
     const requirements = {
       1: 0,
       2: 100,
@@ -108,7 +108,7 @@ export const CharacterSelection: React.FC<CharacterSelectionProps> = ({
                     <Text style={styles.unlockedText}>해금됨</Text>
                   ) : (
                     <Text style={styles.lockedText}>
-                      {getLevelRequirement(level)} XP 필요
+                      {getLevelRequirement(level)} 크레도 필요
                     </Text>
                   )}
                 </View>

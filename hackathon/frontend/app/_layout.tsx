@@ -17,6 +17,7 @@ export default function RootLayout() {
       <Stack.Screen name="my-campus-credo" options={{ headerShown: false }} />
       <Stack.Screen name="home-campus-credo" options={{ headerShown: false }} />
       <Stack.Screen name="skill-tree" options={{ headerShown: false }} />
+      <Stack.Screen name="gemini-test" options={{ headerShown: false }} />
 
     </Stack>
   );

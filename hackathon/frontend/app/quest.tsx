@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   SafeAreaView,
   Alert,
-  Modal,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { CampusCredoBottomNav } from '../components/CampusCredoBottomNav';
@@ -15,34 +14,16 @@ import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import * as SecureStore from 'expo-secure-store';
 import { colors } from '../components/ui/theme';
 import { financialService, type FinancialSummary } from '../services/financialService';
-import { questService, type Quest as QuestType } from '../services/questService';
+import { questService, type Quest } from '../services/questService';
 import questRecommendationService, { QuestRecommendation } from '../services/questRecommendationService';
-
-interface Quest {
-  id: number;
-  title: string;
-  description: string;
-  category: string;
-  difficulty: 'easy' | 'medium' | 'hard';
-  rewards: {
-    credo: number;
-    xp: number;
-    skillType: string;
-  };
-  requirements: string[];
-  timeLimit?: number; // 시간 (시간 단위)
-  progress?: number; // 0-100 (진행 중 퀘스트용)
-  maxProgress?: number;
-  currentProgress?: number;
-  status: 'available' | 'inProgress' | 'completed';
-  dueDate?: string;
-}
+import { QuestDetailModal, type QuestDetail } from '../components/QuestDetailModal';
+import { Transaction } from '../services/financialService';
 
 function QuestPage() {
   const [selectedTab, setSelectedTab] = useState<'recommended' | 'inProgress' | 'completed'>('recommended');
   const [selectedQuest, setSelectedQuest] = useState<Quest | null>(null);
   const [showQuestModal, setShowQuestModal] = useState(false);
-  const [realQuests, setRealQuests] = useState<QuestType[]>([]);
+  const [realQuests, setRealQuests] = useState<Quest[]>([]);
   const [financialData, setFinancialData] = useState<FinancialSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [aiRecommendedQuests, setAiRecommendedQuests] = useState<QuestRecommendation[]>([]);
@@ -67,7 +48,29 @@ function QuestPage() {
         '하루 내 완료 권장'
       ],
       timeLimit: 24,
-      status: 'available'
+      status: 'available',
+      tags: ['알고리즘', '코딩', '백준'],
+      story: '당신은 알고리즘 마스터가 되고 싶어합니다. 백준 온라인 저지에서 문제를 풀며 실력을 쌓아보세요!',
+      tips: [
+        '쉬운 문제부터 시작해서 점진적으로 난이도를 높이세요',
+        '문제를 풀기 전에 문제를 완전히 이해하는 것이 중요합니다',
+        '다양한 알고리즘 기법을 연습해보세요'
+      ],
+      isActive: false,
+      isCompleted: false,
+      progress: {
+        current: 0,
+        target: 1,
+        percentage: 0
+      },
+      trackingType: 'transaction_count' as const,
+      trackingParams: {},
+      currentProgress: 0,
+      maxProgress: 1,
+      rewards: {
+        credo: 50,
+        xp: 100
+      }
     },
     {
       id: 2,
@@ -86,7 +89,32 @@ function QuestPage() {
         '월말까지 유지'
       ],
       timeLimit: 720, // 30일
-      status: 'available'
+      currentProgress: 15, // 15일 진행
+      maxProgress: 30, // 30일 목표
+      progress: 50, // 15/30 = 50%
+      status: 'inProgress',
+      tags: ['재무관리', '지출관리', '예산'],
+      story: '건전한 소비 습관은 성공적인 삶의 기반입니다. 이번 달 지출을 체계적으로 관리해보세요!',
+      tips: [
+        '매일 지출을 기록하는 습관을 들이세요',
+        '카테고리별로 지출을 분류하면 더 쉽게 관리할 수 있습니다',
+        '불필요한 지출을 줄이고 필수 지출에 집중하세요'
+      ],
+      isActive: false,
+      isCompleted: false,
+      progress: {
+        current: 0,
+        target: 1,
+        percentage: 0
+      },
+      trackingType: 'transaction_count' as const,
+      trackingParams: {},
+      currentProgress: 0,
+      maxProgress: 1,
+      rewards: {
+        credo: 100,
+        xp: 200
+      }
     },
     {
       id: 3,
@@ -105,7 +133,32 @@ function QuestPage() {
         '수료증 획득'
       ],
       timeLimit: 168, // 7일
-      status: 'available'
+      currentProgress: 4, // 4일 진행
+      maxProgress: 7, // 7일 목표
+      progress: 57, // 4/7 ≈ 57%
+      status: 'inProgress',
+      tags: ['자기계발', '온라인강의', '학습'],
+      story: '지속적인 학습은 미래에 대한 최고의 투자입니다. 온라인 강의를 통해 새로운 지식을 습득해보세요!',
+      tips: [
+        '관심 있는 분야의 강의를 선택하세요',
+        '주기적으로 수강하는 습관을 들이세요',
+        '수료 후에는 배운 내용을 정리하고 복습하세요'
+      ],
+      isActive: false,
+      isCompleted: false,
+      progress: {
+        current: 0,
+        target: 1,
+        percentage: 0
+      },
+      trackingType: 'transaction_count' as const,
+      trackingParams: {},
+      currentProgress: 0,
+      maxProgress: 1,
+      rewards: {
+        credo: 30,
+        xp: 80
+      }
     },
     {
       id: 4,
@@ -125,8 +178,31 @@ function QuestPage() {
       ],
       currentProgress: 2,
       maxProgress: 5,
+      progress: 40, // 2/5 = 40%
       status: 'inProgress',
-      dueDate: '2024-09-15'
+      dueDate: '2024-09-15',
+      tags: ['대외활동', '프로젝트', '협업'],
+      story: '팀워크는 성공의 핵심입니다. 팀원들과 함께 의미있는 프로젝트를 완성해보세요!',
+      tips: [
+        '명확한 역할 분담이 중요합니다',
+        '정기적인 회의를 통해 진행상황을 공유하세요',
+        'GitHub를 활용해 코드를 체계적으로 관리하세요'
+      ],
+      isActive: false,
+      isCompleted: false,
+      progress: {
+        current: 0,
+        target: 1,
+        percentage: 0
+      },
+      trackingType: 'transaction_count' as const,
+      trackingParams: {},
+      currentProgress: 0,
+      maxProgress: 1,
+      rewards: {
+        credo: 75,
+        xp: 150
+      }
     },
     {
       id: 5,
@@ -146,8 +222,31 @@ function QuestPage() {
       ],
       currentProgress: 6,
       maxProgress: 10,
+      progress: 60, // 6/10 = 60%
       status: 'inProgress',
-      dueDate: '2024-08-30'
+      dueDate: '2024-08-30',
+      tags: ['학업', '자습', '집중력'],
+      story: '도서관은 학습의 성지입니다. 조용한 환경에서 집중력을 키워보세요!',
+      tips: [
+        '도서관에 정기적으로 가는 습관을 들이세요',
+        '연속 2시간 이상 공부하면 집중력이 향상됩니다',
+        '목표 시간을 정하고 달성해보세요'
+      ],
+      isActive: false,
+      isCompleted: false,
+      progress: {
+        current: 0,
+        target: 1,
+        percentage: 0
+      },
+      trackingType: 'transaction_count' as const,
+      trackingParams: {},
+      currentProgress: 0,
+      maxProgress: 1,
+      rewards: {
+        credo: 40,
+        xp: 90
+      }
     },
     {
       id: 6,
@@ -165,13 +264,35 @@ function QuestPage() {
         '주 2회 참석',
         '4주 이상 지속'
       ],
-      status: 'completed'
+      status: 'completed',
+      tags: ['자기계발', '영어', '회화'],
+      story: '영어 회화 스터디를 통해 새로운 친구들과 함께 영어 실력을 향상시켰습니다!',
+      tips: [
+        '꾸준한 참여가 실력 향상의 비결입니다',
+        '다양한 주제로 대화를 나누어보세요',
+        '스터디원들과 친해지면 더 즐겁게 공부할 수 있습니다'
+      ],
+      isActive: false,
+      isCompleted: true,
+      progress: {
+        current: 0,
+        target: 1,
+        percentage: 0
+      },
+      trackingType: 'transaction_count' as const,
+      trackingParams: {},
+      currentProgress: 0,
+      maxProgress: 1,
+      rewards: {
+        credo: 60,
+        xp: 120
+      }
     }
   ]);
 
   useEffect(() => {
     loadQuestData();
-    loadAIRecommendations();
+    // AI 추천은 자동으로 로드하지 않고 사용자가 새로고침 버튼을 눌렀을 때만 로드
   }, []);
 
   const loadQuestData = async () => {
@@ -183,6 +304,24 @@ function QuestPage() {
       if (!token) {
         console.log('❌ 토큰이 없어서 퀘스트 로딩 불가');
         return;
+      }
+
+      // 사용자 정보 가져오기
+      let userId = null;
+      try {
+        const userResponse = await fetch('http://localhost:8000/api/auth/me', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        if (userResponse.ok) {
+          const userData = await userResponse.json() as { id?: number };
+          userId = userData.id?.toString();
+          console.log('👤 사용자 ID 가져옴:', userId);
+        }
+      } catch (error) {
+        console.log('⚠️ 사용자 정보 가져오기 실패:', error);
       }
 
       // 금융 데이터 로딩
@@ -200,7 +339,7 @@ function QuestPage() {
       setFinancialData(summary);
 
       // 최근 거래내역 로딩 (안전한 처리)
-      let transactions = [];
+      let transactions: Transaction[] = [];
       try {
         if (summary && summary.accounts && summary.accounts.length > 0) {
           transactions = await financialService.getRecentTransactionsWithToken(token, 30);
@@ -214,10 +353,10 @@ function QuestPage() {
       }
 
       // 개인화된 퀘스트 생성 (안전한 처리)
-      let personalizedQuests = [];
+      let personalizedQuests: Quest[] = [];
       try {
         if (summary && transactions) {
-          personalizedQuests = questService.generatePersonalizedQuests(summary, transactions);
+          personalizedQuests = questService.generatePersonalizedQuests(summary, transactions, userId);
         } else {
           personalizedQuests = [];
         }
@@ -227,7 +366,7 @@ function QuestPage() {
       }
       
       // 퀘스트 진행 상황 업데이트 (안전한 처리)
-      let updatedQuests = [];
+      let updatedQuests: Quest[] = [];
       try {
         if (personalizedQuests && transactions && summary) {
           updatedQuests = questService.updateQuestProgress(personalizedQuests, transactions, summary);
@@ -423,116 +562,47 @@ function QuestPage() {
     );
   };
 
-  const QuestModal = () => (
-    <Modal
-      visible={showQuestModal}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={() => setShowQuestModal(false)}
-    >
-      <SafeAreaView style={styles.modalContainer}>
-        <View style={styles.modalHeader}>
-          <TouchableOpacity onPress={() => setShowQuestModal(false)}>
-            <Feather name="x" size={24} color="#6B7280" />
-          </TouchableOpacity>
-          <Text style={styles.modalTitle}>퀘스트 상세</Text>
-          <View style={{ width: 24 }} />
-        </View>
+  // 퀘스트 액션 핸들러들
+  const handleStartQuest = (quest: Quest) => {
+    const updatedQuests = quests.map(q => 
+      q.id === quest.id 
+        ? { ...q, status: 'inProgress' as const, progress: 0, currentProgress: 0 }
+        : q
+    );
+    setQuests(updatedQuests);
+    setShowQuestModal(false);
+    Alert.alert('퀘스트 시작', `"${quest.title}" 퀘스트를 시작했습니다!`);
+  };
 
-        {selectedQuest && (
-          <ScrollView style={styles.modalContent}>
-            <View style={styles.questDetailCard}>
-              <View style={styles.questDetailHeader}>
-                <View style={styles.questCategory}>
-                  <Feather 
-                    name={getCategoryIcon(selectedQuest.category) as any} 
-                    size={16} 
-                    color={getCategoryColor(selectedQuest.category)} 
-                  />
-                  <Text style={[styles.questCategoryText, { color: getCategoryColor(selectedQuest.category) }]}>
-                    {selectedQuest.category}
-                  </Text>
-                </View>
-                <View style={[
-                  styles.difficultyBadge, 
-                  { backgroundColor: getDifficultyColor(selectedQuest.difficulty) }
-                ]}>
-                  <Text style={styles.difficultyText}>
-                    {getDifficultyText(selectedQuest.difficulty)}
-                  </Text>
-                </View>
-              </View>
+  const handleCompleteQuest = (quest: Quest) => {
+    const updatedQuests = quests.map(q => 
+      q.id === quest.id 
+        ? { ...q, status: 'completed' as const, progress: 100 }
+        : q
+    );
+    setQuests(updatedQuests);
+    setShowQuestModal(false);
+    
+    // 보상 지급
+    Alert.alert(
+      '퀘스트 완료! 🎉',
+      `축하합니다!\n\n크레도 +${quest.rewards.credo}\nXP +${quest.rewards.xp}\n스킬: ${quest.rewards.skillType}`,
+      [{ text: '확인' }]
+    );
+  };
 
-              <Text style={styles.questDetailTitle}>{selectedQuest.title}</Text>
-              <Text style={styles.questDetailDescription}>{selectedQuest.description}</Text>
+  const handleAbandonQuest = (quest: Quest) => {
+    const updatedQuests = quests.map(q => 
+      q.id === quest.id 
+        ? { ...q, status: 'available' as const, progress: 0, currentProgress: 0 }
+        : q
+    );
+    setQuests(updatedQuests);
+    setShowQuestModal(false);
+    Alert.alert('퀘스트 포기', `"${quest.title}" 퀘스트를 포기했습니다.`);
+  };
 
-              {/* 진행률 */}
-              {selectedQuest.currentProgress !== undefined && selectedQuest.maxProgress && (
-                <View style={styles.progressSection}>
-                  <View style={styles.progressHeader}>
-                    <Text style={styles.progressTitle}>진행 상황</Text>
-                    <Text style={styles.progressText}>
-                      {selectedQuest.currentProgress}/{selectedQuest.maxProgress}
-                    </Text>
-                  </View>
-                  <View style={styles.progressBar}>
-                    <View 
-                      style={[
-                        styles.progressFill, 
-                        { width: `${(selectedQuest.currentProgress / selectedQuest.maxProgress) * 100}%` }
-                      ]} 
-                    />
-                  </View>
-                </View>
-              )}
-
-              {/* 요구사항 */}
-              <View style={styles.requirementsSection}>
-                <Text style={styles.sectionTitle}>완료 조건</Text>
-                {selectedQuest.requirements.map((req, index) => (
-                  <View key={index} style={styles.requirementItem}>
-                    <Feather name="check-circle" size={16} color="#10B981" />
-                    <Text style={styles.requirementText}>{req}</Text>
-                  </View>
-                ))}
-              </View>
-
-              {/* 보상 */}
-              <View style={styles.rewardsSection}>
-                <Text style={styles.sectionTitle}>보상</Text>
-                <View style={styles.rewardsList}>
-                  <View style={styles.rewardItem}>
-                    <Feather name="zap" size={16} color="#F59E0B" />
-                    <Text style={styles.rewardText}>{selectedQuest.rewards?.credo || 50} Credo</Text>
-                  </View>
-                  <View style={styles.rewardItem}>
-                    <Feather name="star" size={16} color="#8B5CF6" />
-                    <Text style={styles.rewardText}>{selectedQuest.rewards?.xp || 100} XP</Text>
-                  </View>
-                  <View style={styles.rewardItem}>
-                    <Feather name="trending-up" size={16} color="#3B82F6" />
-                    <Text style={styles.rewardText}>{selectedQuest.rewards?.skillType || '기본'} 스킬</Text>
-                  </View>
-                </View>
-              </View>
-            </View>
-          </ScrollView>
-        )}
-
-        <View style={styles.modalActions}>
-          <TouchableOpacity 
-            style={styles.completeButton}
-            onPress={() => selectedQuest && handleQuestComplete(selectedQuest)}
-          >
-            <Feather name="check" size={20} color="white" />
-            <Text style={styles.completeButtonText}>완료하기</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    </Modal>
-  );
-
-  const handleRealQuestAction = (quest: QuestType) => {
+  const handleRealQuestAction = (quest: Quest) => {
     if (quest.isCompleted) {
       // 보상 받기
       const result = questService.claimQuestReward(quest);
@@ -627,19 +697,36 @@ function QuestPage() {
 
 
       {/* AI 추천 퀘스트 섹션 */}
-      {selectedTab === 'recommended' && aiRecommendedQuests.length > 0 && (
+      {selectedTab === 'recommended' && (
         <Animated.View entering={FadeInDown.delay(250)} style={styles.aiRecommendationSection}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleContainer}>
               <Feather name="cpu" size={20} color={colors.primary[500]} />
               <Text style={styles.sectionTitle}>AI 맞춤 추천</Text>
+              <TouchableOpacity
+                style={styles.refreshButton}
+                onPress={loadAIRecommendations}
+                disabled={isLoadingAI}
+              >
+                <Feather 
+                  name={isLoadingAI ? "loader" : "refresh-cw"} 
+                  size={16} 
+                  color={isLoadingAI ? colors.neutral[400] : colors.primary[500]} 
+                />
+              </TouchableOpacity>
             </View>
             <Text style={styles.sectionSubtitle}>
               당신의 성장 패턴을 분석한 개인화된 퀘스트
+              {aiRecommendedQuests.length === 0 && (
+                <Text style={styles.noRecommendationsText}>
+                  {'\n'}새로고침 버튼을 눌러 AI 추천 퀘스트를 받아보세요!
+                </Text>
+              )}
             </Text>
           </View>
           
-          {aiRecommendedQuests.map((quest, index) => (
+          {aiRecommendedQuests.length > 0 ? (
+            aiRecommendedQuests.map((quest, index) => (
             <TouchableOpacity
               key={quest.id}
               style={styles.aiQuestCard}
@@ -774,10 +861,17 @@ function QuestPage() {
                 >
                   <Text style={styles.startAIQuestButtonText}>시작하기</Text>
                   <Feather name="arrow-right" size={16} color={colors.white} />
-                </TouchableOpacity>
+                                  </TouchableOpacity>
               </View>
             </TouchableOpacity>
-          ))}
+          ))
+          ) : (
+            <View style={styles.noQuestsContainer}>
+              <Text style={styles.noQuestsText}>
+                AI 추천 퀘스트가 없습니다. 새로고침 버튼을 눌러보세요!
+              </Text>
+            </View>
+          )}
         </Animated.View>
       )}
 
@@ -794,7 +888,7 @@ function QuestPage() {
               >
                 <TouchableOpacity 
                   style={styles.questCard}
-                  onPress={() => isRealQuest ? handleRealQuestAction(quest as QuestType) : handleQuestAction(quest as Quest)}
+                  onPress={() => isRealQuest ? handleRealQuestAction(quest as Quest) : handleQuestAction(quest as Quest)}
                 >
                   <View style={styles.questHeader}>
                     <View style={styles.questCategory}>
@@ -821,21 +915,21 @@ function QuestPage() {
                   <Text style={styles.questDescription}>{quest.description}</Text>
 
                   {/* 실제 퀘스트의 진행률 표시 */}
-                  {isRealQuest && (quest as QuestType).progress && (
+                  {isRealQuest && (quest as Quest).progress && (
                     <View style={styles.progressSection}>
                       <View style={styles.progressBar}>
                         <View 
                           style={[
                             styles.progressFill, 
-                            { width: `${Math.min((quest as QuestType).progress.percentage, 100)}%` }
+                            { width: `${Math.min((quest as Quest).progress.percentage, 100)}%` }
                           ]} 
                         />
                       </View>
                       <Text style={styles.progressText}>
-                        {(quest as QuestType).progress.current.toLocaleString()} / {(quest as QuestType).progress.target.toLocaleString()}
-                        {(quest as QuestType).trackingType === 'balance_target' && '원'}
-                        {(quest as QuestType).trackingType === 'spending_limit' && '원'}
-                        {(quest as QuestType).trackingType === 'transaction_count' && '건'}
+                        {(quest as Quest).progress.current.toLocaleString()} / {(quest as Quest).progress.target.toLocaleString()}
+                        {(quest as Quest).trackingType === 'balance_target' && '원'}
+                        {(quest as Quest).trackingType === 'spending_limit' && '원'}
+                        {(quest as Quest).trackingType === 'transaction_count' && '건'}
                       </Text>
                     </View>
                   )}
@@ -866,7 +960,7 @@ function QuestPage() {
                     <Feather name="zap" size={12} color="#F59E0B" />
                     <Text style={styles.rewardText}>
                       +{isRealQuest 
-                        ? ((quest as QuestType).rewards?.credo || 50)
+                        ? ((quest as Quest).rewards?.credo || 50)
                         : ((quest as Quest).rewards?.credo || 50)
                       } Credo
                     </Text>
@@ -875,7 +969,7 @@ function QuestPage() {
                     <Feather name="star" size={12} color="#8B5CF6" />
                     <Text style={styles.rewardText}>
                       +{isRealQuest 
-                        ? ((quest as QuestType).rewards?.xp || 100)
+                        ? ((quest as Quest).rewards?.xp || 100)
                         : ((quest as Quest).rewards?.xp || 100)
                       } XP
                     </Text>
@@ -916,7 +1010,15 @@ function QuestPage() {
       {/* 하단 네비게이션 */}
       <CampusCredoBottomNav />
       
-      <QuestModal />
+      {/* 새로운 QuestDetailModal 사용 */}
+      <QuestDetailModal
+        visible={showQuestModal}
+        quest={selectedQuest}
+        onClose={() => setShowQuestModal(false)}
+        onStartQuest={handleStartQuest}
+        onCompleteQuest={handleCompleteQuest}
+        onAbandonQuest={handleAbandonQuest}
+      />
     </SafeAreaView>
   );
 }
@@ -1214,6 +1316,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     marginBottom: 4,
+    justifyContent: 'space-between',
+    flex: 1,
   },
   
   sectionTitle: {
@@ -1337,6 +1441,36 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+
+  refreshButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: colors.primary[50],
+    borderWidth: 1,
+    borderColor: colors.primary[200],
+  },
+
+  noRecommendationsText: {
+    fontSize: 12,
+    color: colors.neutral[500],
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
+
+  noQuestsContainer: {
+    alignItems: 'center',
+    padding: 32,
+    backgroundColor: colors.neutral[50],
+    borderRadius: 12,
+    marginTop: 16,
+  },
+
+  noQuestsText: {
+    fontSize: 14,
+    color: colors.neutral[600],
+    textAlign: 'center',
+    lineHeight: 20,
   },
   
   aiQuestRewards: {

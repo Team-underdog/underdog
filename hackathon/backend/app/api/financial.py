@@ -4,6 +4,7 @@ from sqlmodel import Session, select
 from typing import Optional, List
 from datetime import datetime, timedelta
 import random
+import logging
 
 
 from ..db.session import get_session
@@ -27,6 +28,7 @@ SHINHAN_GROUP = {
 
 router = APIRouter()
 security = HTTPBearer()
+logger = logging.getLogger(__name__)
 
 
 def get_current_user(
@@ -60,8 +62,9 @@ async def get_bank_accounts(
         ).all()
         
         if not accounts:
-            # 목업 데이터 생성
-            accounts = create_mock_bank_accounts(current_user.id, db)
+            # 계좌가 없으면 빈 배열 반환 (목업 데이터 생성하지 않음)
+            logger.info(f"사용자 {current_user.id}의 계좌가 없습니다")
+            return []
         
         return [
             BankAccountResponse(
@@ -103,8 +106,9 @@ async def get_transactions(
         ).all()
         
         if not user_accounts:
-            # 목업 데이터 생성
-            user_accounts = create_mock_bank_accounts(current_user.id, db)
+            # 계좌가 없으면 빈 배열 반환
+            logger.info(f"사용자 {current_user.id}의 계좌가 없습니다")
+            return []
         
         # 특정 계좌의 거래 내역 조회
         if account_id:
@@ -125,8 +129,9 @@ async def get_transactions(
             ).all()
         
         if not transactions:
-            # 목업 데이터 생성
-            transactions = create_mock_transactions(user_accounts, db)
+            # 거래 내역이 없으면 빈 배열 반환
+            logger.info(f"사용자 {current_user.id}의 거래 내역이 없습니다")
+            return []
         
         return [
             TransactionResponse(
@@ -317,11 +322,12 @@ async def get_financial_summary(
             ).all()
             
             if not accounts:
-                # 목업 데이터 생성
-                accounts = create_mock_bank_accounts(current_user.id, db)
+                # 계좌가 없으면 빈 배열 반환 (목업 데이터 생성하지 않음)
+                print(f"사용자 {current_user.id}의 계좌가 없습니다")
+                accounts = []
         except Exception as e:
-            print(f"⚠️ 계좌 조회 실패, 목업 데이터 사용: {e}")
-            accounts = create_mock_bank_accounts(current_user.id, db)
+            print(f"⚠️ 계좌 조회 실패: {e}")
+            accounts = []
         
         # 신용점수 조회 (안전한 처리)
         try:
@@ -330,11 +336,12 @@ async def get_financial_summary(
             ).first()
             
             if not credit_score:
-                # 목업 데이터 생성
-                credit_score = create_mock_credit_score(current_user.id, db)
+                # 신용점수가 없으면 기본값 사용 (목업 데이터 생성하지 않음)
+                print(f"사용자 {current_user.id}의 신용점수가 없습니다")
+                credit_score = None
         except Exception as e:
-            print(f"⚠️ 신용점수 조회 실패, 목업 데이터 사용: {e}")
-            credit_score = create_mock_credit_score(current_user.id, db)
+            print(f"⚠️ 신용점수 조회 실패: {e}")
+            credit_score = None
         
         # 거래 내역 조회 (최근 10건) - 안전한 처리
         try:
@@ -350,11 +357,12 @@ async def get_financial_summary(
                 transactions = []
             
             if not transactions:
-                # 목업 데이터 생성
-                transactions = create_mock_transactions(accounts, db)
+                # 거래내역이 없으면 빈 배열 반환 (목업 데이터 생성하지 않음)
+                print(f"사용자 {current_user.id}의 거래내역이 없습니다")
+                transactions = []
         except Exception as e:
-            print(f"⚠️ 거래내역 조회 실패, 목업 데이터 사용: {e}")
-            transactions = create_mock_transactions(accounts, db)
+            print(f"⚠️ 거래내역 조회 실패: {e}")
+            transactions = []
         
         # 가입 상품 조회 (안전한 처리)
         try:
@@ -363,11 +371,12 @@ async def get_financial_summary(
             ).all()
             
             if not user_products:
-                # 목업 데이터 생성
-                user_products = create_mock_user_products(current_user.id, db)
+                # 가입상품이 없으면 빈 배열 반환 (목업 데이터 생성하지 않음)
+                print(f"사용자 {current_user.id}의 가입상품이 없습니다")
+                user_products = []
         except Exception as e:
-            print(f"⚠️ 가입상품 조회 실패, 목업 데이터 사용: {e}")
-            user_products = create_mock_user_products(current_user.id, db)
+            print(f"⚠️ 가입상품 조회 실패: {e}")
+            user_products = []
         
         # 요약 정보 계산 (안전한 처리)
         try:
@@ -388,14 +397,14 @@ async def get_financial_summary(
             total_liabilities=total_liabilities,
             net_worth=net_worth,
             credit_score=CreditScoreResponse(
-                id=credit_score.id,
-                score=credit_score.score,
-                grade=credit_score.grade,
-                last_updated=credit_score.last_updated,
-                credit_limit=credit_score.credit_limit,
-                used_credit=credit_score.used_credit,
-                created_at=credit_score.created_at,
-                updated_at=credit_score.updated_at
+                id=credit_score.id if credit_score else 0,
+                score=credit_score.score if credit_score else 0,
+                grade=credit_score.grade if credit_score else 'N/A',
+                last_updated=credit_score.last_updated if credit_score else datetime.now(),
+                credit_limit=credit_score.credit_limit if credit_score else 0,
+                used_credit=credit_score.used_credit if credit_score else 0,
+                created_at=credit_score.created_at if credit_score else datetime.now(),
+                updated_at=credit_score.updated_at if credit_score else datetime.now()
             ),
             accounts=[
                 BankAccountResponse(

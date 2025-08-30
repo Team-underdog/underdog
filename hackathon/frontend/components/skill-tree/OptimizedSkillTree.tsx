@@ -18,6 +18,11 @@ import { Svg, Polygon, Defs, LinearGradient as SvgLinearGradient, Stop, Text as 
 import { TabView, SceneMap, TabBar } from 'react-native-tab-view';
 import AcademicsTab from './AcademicsTab';
 import FinanceTab from './FinanceTab';
+import skillTreeAnalysisService, { type SkillTreeAnalysis, type UserProfileData } from '../../services/skillTreeAnalysisService';
+import XPService from '../../services/xpService';
+import { financialService } from '../../services/financialService';
+import { questService } from '../../services/questService';
+import { chronicleService } from '../../services/chronicleService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -58,6 +63,8 @@ interface AIAnalysis {
   personality: string[];
   recommendations: string[];
   careerSuggestions: string[];
+  skillInsights?: string[];
+  growthPath?: string[];
 }
 
 const OptimizedSkillTree: React.FC = () => {
@@ -72,6 +79,7 @@ const OptimizedSkillTree: React.FC = () => {
   const [selectedSkill, setSelectedSkill] = useState<SkillNode | null>(null);
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState<AIAnalysis | null>(null);
+  const [isLoadingAI, setIsLoadingAI] = useState(false);
   
   // Holland 차트 애니메이션 상태
   const [chartAnimationProgress, setChartAnimationProgress] = useState(0);
@@ -692,41 +700,123 @@ const OptimizedSkillTree: React.FC = () => {
 
   const runAIAnalysis = async () => {
     try {
-      const mockAnalysis: AIAnalysis = {
-        strengths: [
-          '사회적 상호작용 능력이 뛰어남',
-          '체계적인 계획 수립 능력',
-          '지속적인 학습 의지'
-        ],
-        weaknesses: [
-          '예술적 창의성 부족',
-          '관습적 사고 패턴',
-          '리스크 감수 성향 부족'
-        ],
-        personality: [
-          '협력적이고 친화적인 성격',
-          '논리적이고 체계적인 사고',
-          '안정성과 확실성을 추구'
-        ],
-        recommendations: [
-          '창의적 사고 훈련 프로그램 참여',
-          '새로운 경험 도전',
-          '다양한 관점에서 문제 접근'
-        ],
-        careerSuggestions: [
-          '교육자, 상담사, 사회복지사',
-          '프로젝트 매니저, 분석가',
-          '공무원, 연구원'
-        ]
+      setIsLoadingAI(true);
+      
+      // 사용자 프로필 데이터 수집
+      const userProfile = await collectUserProfileData();
+      
+      // AI 분석 실행
+      const analysis = await skillTreeAnalysisService.generatePersonalizedAnalysis(userProfile);
+      
+      // AIAnalysis 형식으로 변환
+      const aiAnalysisData: AIAnalysis = {
+        strengths: analysis.strengths,
+        weaknesses: analysis.weaknesses,
+        personality: analysis.personality,
+        recommendations: analysis.recommendations,
+        careerSuggestions: analysis.careerSuggestions
       };
       
-      setAiAnalysis(mockAnalysis);
+      setAiAnalysis(aiAnalysisData);
       setShowAnalysis(true);
       
       // 모달 애니메이션을 위해 fadeAnim을 1로 설정
       Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }).start();
+      
+      console.log('✅ AI 개인 분석 완료:', analysis);
     } catch (error) {
-      Alert.alert('오류', 'AI 분석을 실행할 수 없습니다.');
+      console.error('❌ AI 분석 실패:', error);
+      Alert.alert('오류', 'AI 분석을 실행할 수 없습니다. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setIsLoadingAI(false);
+    }
+  };
+
+  /**
+   * 사용자 프로필 데이터 수집
+   */
+  const collectUserProfileData = async (): Promise<UserProfileData> => {
+    try {
+      // 크레도 데이터
+      const credoData = await XPService.getInstance().fetchCredoData('1'); // userId는 임시로 '1' 사용
+      
+      // 금융 데이터
+      const financialSummary = await financialService.getFinancialSummary();
+      
+      // 퀘스트 데이터 (기본값 사용)
+      const questData = {
+        completedQuests: 3, // 실제로는 questService에서 가져와야 함
+        activeQuests: 2,
+        questCategories: ['재무관리', '학업', '자기계발'],
+        questSuccessRate: 75
+      };
+      
+      // 크로니클 데이터 (기본값 사용)
+      const chronicleData = {
+        totalPosts: 5,
+        engagementRate: 60,
+        postCategories: ['일상', '학습', '금융']
+      };
+      
+      // 학업 데이터 (기본값 사용)
+      const academicData = {
+        gpa: 3.8,
+        completedCourses: 24,
+        studyHours: 15,
+        certifications: ['정보처리기사', '토익 850점']
+      };
+      
+      return {
+        credoData: {
+          currentCredo: credoData.currentCredo,
+          currentLevel: credoData.currentLevel,
+          totalCredo: credoData.totalCredo,
+          currentXP: credoData.currentXP,
+          totalXP: credoData.totalXP
+        },
+        financialData: {
+          monthlyIncome: financialSummary.monthly_income,
+          monthlySpending: financialSummary.monthly_spending,
+          savingsRate: financialSummary.monthly_income && financialSummary.monthly_spending 
+            ? ((financialSummary.monthly_income - financialSummary.monthly_spending) / financialSummary.monthly_income) * 100
+            : undefined,
+          investmentAmount: financialSummary.investments?.reduce((sum, inv) => sum + inv.amount, 0),
+          debtAmount: financialSummary.debts?.reduce((sum, debt) => sum + debt.amount, 0)
+        },
+        questData,
+        chronicleData,
+        academicData
+      };
+    } catch (error) {
+      console.error('사용자 프로필 데이터 수집 실패:', error);
+      // 기본값 반환
+      return {
+        credoData: {
+          currentCredo: 500,
+          currentLevel: 3,
+          totalCredo: 800,
+          currentXP: 1200,
+          totalXP: 2000
+        },
+        financialData: {},
+        questData: {
+          completedQuests: 3,
+          activeQuests: 2,
+          questCategories: ['재무관리', '학업', '자기계발'],
+          questSuccessRate: 75
+        },
+        chronicleData: {
+          totalPosts: 5,
+          engagementRate: 60,
+          postCategories: ['일상', '학습', '금융']
+        },
+        academicData: {
+          gpa: 3.8,
+          completedCourses: 24,
+          studyHours: 15,
+          certifications: ['정보처리기사', '토익 850점']
+        }
+      };
     }
   };
 
@@ -745,15 +835,25 @@ const OptimizedSkillTree: React.FC = () => {
             style={styles.analysisButton}
             onPress={runAIAnalysis}
             activeOpacity={0.8}
+            disabled={isLoadingAI}
           >
             <LinearGradient
-              colors={['#6366f1', '#8b5cf6']}
+              colors={isLoadingAI ? ['#9ca3af', '#6b7280'] : ['#6366f1', '#8b5cf6']}
               style={styles.analysisButtonGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             >
-              <MaterialIcons name="psychology" size={20} color="white" />
-              <Text style={styles.analysisButtonText}>나 알아보기</Text>
+              {isLoadingAI ? (
+                <>
+                  <MaterialIcons name="hourglass-empty" size={20} color="white" />
+                  <Text style={styles.analysisButtonText}>분석 중...</Text>
+                </>
+              ) : (
+                <>
+                  <MaterialIcons name="psychology" size={20} color="white" />
+                  <Text style={styles.analysisButtonText}>나 알아보기</Text>
+                </>
+              )}
             </LinearGradient>
           </TouchableOpacity>
         </View>

@@ -66,7 +66,12 @@ cd hackathon/backend
 pip install -r requirements.txt
 pip install google-genai
 export GEMINI_API_KEY="your_api_key_here"
+
+# ⚠️ 중요: 올바른 실행 경로 사용
 python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# ❌ 잘못된 실행 방법 (연결 오류 발생)
+# python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ### **Frontend 설정**
@@ -118,6 +123,59 @@ npm start
 - **사용자 데이터**: 개인정보 암호화 및 보호
 - **접근 제어**: 인증된 사용자만 데이터 접근 가능
 
+## 🚨 **트러블슈팅**
+
+### **일반적인 문제 해결**
+
+#### **1. "Network request failed" 오류**
+```bash
+# 백엔드 서버가 실행 중인지 확인
+ps aux | grep uvicorn
+
+# 올바른 경로로 서버 실행
+cd hackathon/backend
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+#### **2. "계좌 정보 로딩 중..." 무한 로딩**
+- 백엔드 서버가 올바른 포트(8000)에서 실행 중인지 확인
+- API URL이 올바른 IP 주소를 사용하는지 확인
+- 네트워크 연결 상태 확인
+
+#### **3. 백엔드 서버 연결 실패**
+```bash
+# 서버 상태 확인
+curl http://192.168.10.45:8000/api/health
+
+# 포트 사용 중인지 확인
+lsof -i :8000
+
+# 서버 재시작
+pkill -f uvicorn
+cd hackathon/backend
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+## 🚀 **버전 히스토리**
+
+### **v2.0.2 (2025-08-30) - 네트워크 연결 및 데이터 로딩 최적화**
+- ✅ **백엔드 서버 연결 문제 해결**: uvicorn 실행 경로 수정 (`main:app` → `app.main:app`)
+- ✅ **API 엔드포인트 최적화**: 모바일 앱 접근을 위한 올바른 IP 주소 설정
+- ✅ **데이터 로딩 순서 개선**: 사용자 데이터 로드 후 금융 데이터 로드하도록 로직 수정
+- ✅ **네트워크 오류 해결**: "Network request failed" 오류 완전 해결
+- ✅ **계좌 정보 로딩 최적화**: "계좌 정보 로딩 중..." 문제 해결
+- 🔧 **백엔드 서버 안정성 향상**: 포트 8000에서 정상 실행 확인
+
+### **v2.0.1 (2025-08-30) - AI 통합 및 스킬트리 시스템**
+- ✅ Google GenAI SDK 통합
+- ✅ AI 개인 분석 시스템 구현
+- ✅ 스킬트리 시각화 시스템
+
+### **v2.0.0 (2025-08-30) - 초기 릴리즈**
+- ✅ 기본 게이미피케이션 시스템
+- ✅ 사용자 인증 및 프로필 관리
+- ✅ 기본 스킬트리 구조
+
 ## 🚀 **향후 개발 계획**
 
 ### **v2.1 (예정)**
@@ -144,5 +202,5 @@ npm start
 ---
 
 **Last Updated**: 2025-08-30  
-**Version**: 2.0.0  
+**Version**: 2.0.2  
 **Status**: 🟢 Production Ready

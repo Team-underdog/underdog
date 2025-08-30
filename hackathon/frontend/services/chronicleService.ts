@@ -1,4 +1,5 @@
 import { API_ENDPOINTS } from '../config/api';
+import * as SecureStore from 'expo-secure-store';
 
 // 크로니클 포스트 인터페이스
 export interface ChroniclePost {
@@ -23,16 +24,30 @@ export interface ChroniclePost {
  */
 export const saveChroniclePost = async (userId: string, post: Omit<ChroniclePost, 'id' | 'userId'>): Promise<string> => {
   try {
+    // 인증 토큰 가져오기
+    const token = await SecureStore.getItemAsync('authToken');
+    
+    if (!token) {
+      throw new Error('인증 토큰이 없습니다. 로그인이 필요합니다.');
+    }
+    
+    // 백엔드 모델에 맞는 데이터 구조로 변환
+    const backendPost = {
+      user_id: parseInt(userId), // string -> int 변환
+      type: post.type,
+      title: post.title,
+      description: post.description,
+      rewards: JSON.stringify(post.rewards), // 객체 -> JSON 문자열
+      user_content: JSON.stringify(post.userContent), // 객체 -> JSON 문자열
+    };
+    
     const response = await fetch(API_ENDPOINTS.CHRONICLE.POSTS, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
       },
-      body: JSON.stringify({
-        ...post,
-        userId,
-        timestamp: new Date().toISOString(),
-      }),
+      body: JSON.stringify(backendPost),
     });
 
     if (!response.ok) {
@@ -81,8 +96,18 @@ export const getUserChronicles = async (userId: string): Promise<ChroniclePost[]
  */
 export const deleteChroniclePost = async (postId: string): Promise<void> => {
   try {
+    // 인증 토큰 가져오기
+    const token = await SecureStore.getItemAsync('authToken');
+    
+    if (!token) {
+      throw new Error('인증 토큰이 없습니다. 로그인이 필요합니다.');
+    }
+    
     const response = await fetch(`${API_ENDPOINTS.CHRONICLE.POSTS}/${postId}`, {
       method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
     });
 
     if (!response.ok) {

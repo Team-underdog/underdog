@@ -1,4 +1,5 @@
 import { getCurrentUser } from './authService';
+import GeminiService from './geminiService';
 
 export interface QuestRecommendation {
   id: string;
@@ -26,7 +27,7 @@ export interface UserProfile {
   goals: string[];
 }
 
-export class QuestRecommendationService {
+class QuestRecommendationService {
   private static instance: QuestRecommendationService;
   
   private constructor() {}
@@ -80,6 +81,46 @@ export class QuestRecommendationService {
   async generatePersonalizedQuests(count: number = 3): Promise<QuestRecommendation[]> {
     try {
       const userProfile = await this.analyzeUserProfile();
+      
+      // Gemini AI를 사용한 퀘스트 생성 시도
+      try {
+        const geminiService = GeminiService.getInstance();
+        if (geminiService.isConfigured()) {
+          console.log('🤖 Gemini AI를 사용하여 퀘스트 생성 중...');
+          
+          // 실제 사용자 데이터로 Gemini AI 호출
+          const geminiQuests = await geminiService.generatePersonalizedQuests(
+            userProfile,
+            {}, // 금융 데이터 (실제로는 financialService에서 가져와야 함)
+            {} // 학업 데이터 (실제로는 userService에서 가져와야 함)
+          );
+          
+          if (geminiQuests.length > 0) {
+            console.log('✅ Gemini AI 퀘스트 생성 성공:', geminiQuests.length);
+            // Gemini AI 응답을 QuestRecommendation 형식으로 변환
+            return geminiQuests.map((geminiQuest, index) => ({
+              id: `gemini-${Date.now()}-${index}`,
+              title: geminiQuest.title,
+              description: geminiQuest.description,
+              category: this.mapCategory(geminiQuest.category),
+              difficulty: this.mapDifficulty(geminiQuest.difficulty),
+              estimatedDuration: this.parseDuration(geminiQuest.estimatedDuration),
+              xpReward: geminiQuest.rewards.xp,
+              skillRewards: { [geminiQuest.category]: geminiQuest.rewards.credo * 0.1 },
+              prerequisites: [],
+              tags: [geminiQuest.category, geminiQuest.difficulty],
+              aiReason: geminiQuest.aiReason,
+              completionCriteria: [`${geminiQuest.estimatedDuration} 동안 ${geminiQuest.title} 완료`],
+              isPersonalized: true,
+            }));
+          }
+        }
+      } catch (geminiError) {
+        console.warn('⚠️ Gemini AI 퀘스트 생성 실패, 기본 퀘스트 사용:', geminiError);
+      }
+
+      // Gemini AI 실패 시 기본 퀘스트 생성
+      console.log('🔄 기본 퀘스트 생성 시스템 사용');
       const recommendations: QuestRecommendation[] = [];
 
       // 약점 스킬 보완 퀘스트
@@ -95,23 +136,70 @@ export class QuestRecommendationService {
       }
 
       // 금융 건강 개선 퀘스트
-    if (userProfile.financialHealth < 7) {
-      recommendations.push(this.createFinancialHealthQuest(userProfile));
-    }
+      if (userProfile.financialHealth < 7) {
+        recommendations.push(this.createFinancialHealthQuest(userProfile));
+      }
 
-    // 학업 성과 향상 퀘스트
-    if (userProfile.academicLevel < 8) {
-      recommendations.push(this.createAcademicImprovementQuest(userProfile));
-    }
+      // 학업 성과 향상 퀘스트
+      if (userProfile.academicLevel < 8) {
+        recommendations.push(this.createAcademicImprovementQuest(userProfile));
+      }
 
-    // 개인적 성장 퀘스트
-    recommendations.push(this.createPersonalGrowthQuest(userProfile));
+      // 개인적 성장 퀘스트
+      recommendations.push(this.createPersonalGrowthQuest(userProfile));
 
-    // 최대 개수만큼 반환
-    return recommendations.slice(0, count);
+      // 최대 개수만큼 반환
+      return recommendations.slice(0, count);
+      
     } catch (error) {
       console.error('개인화 퀘스트 생성 실패:', error);
       return this.getFallbackQuests();
+    }
+  }
+
+  // Gemini AI 카테고리를 QuestRecommendation 카테고리로 매핑
+  private mapCategory(geminiCategory: string): 'academic' | 'financial' | 'personal' | 'social' | 'career' {
+    switch (geminiCategory.toLowerCase()) {
+      case 'academic':
+        return 'academic';
+      case 'financial':
+        return 'financial';
+      case 'personal':
+        return 'personal';
+      case 'social':
+        return 'social';
+      default:
+        return 'personal';
+    }
+  }
+
+  // Gemini AI 난이도를 QuestRecommendation 난이도로 매핑
+  private mapDifficulty(geminiDifficulty: string): 'easy' | 'medium' | 'hard' {
+    switch (geminiDifficulty.toLowerCase()) {
+      case 'easy':
+        return 'easy';
+      case 'normal':
+        return 'medium';
+      case 'hard':
+        return 'hard';
+      default:
+        return 'medium';
+    }
+  }
+
+  // Gemini AI 소요시간을 분 단위로 파싱
+  private parseDuration(durationText: string): number {
+    if (durationText.includes('주')) {
+      const weeks = parseInt(durationText.match(/(\d+)주/)?.[1] || '1');
+      return weeks * 7 * 24 * 60; // 주를 분으로 변환
+    } else if (durationText.includes('개월')) {
+      const months = parseInt(durationText.match(/(\d+)개월/)?.[1] || '1');
+      return months * 30 * 24 * 60; // 개월을 분으로 변환
+    } else if (durationText.includes('일')) {
+      const days = parseInt(durationText.match(/(\d+)일/)?.[1] || '1');
+      return days * 24 * 60; // 일을 분으로 변환
+    } else {
+      return 60; // 기본값: 1시간
     }
   }
 
@@ -212,7 +300,7 @@ export class QuestRecommendationService {
     return {
       id: `skill_utilization_${topSkill.name}_${Date.now()}`,
       ...template,
-      aiReason: `${topSkill.name}이 Lv.${topSkill.level}로 뛰어납니다. 이 강점을 더욱 발전시키고 다른 영역에도 적용해보세요.`,
+      aiReason: `현재 ${topSkill.name}이 Lv.${topSkill.level}로 높은 수준입니다. 이 강점을 활용하여 더 큰 성과를 창출하고 다른 영역으로 확장할 수 있습니다.`,
       isPersonalized: true,
     };
   }
@@ -225,12 +313,12 @@ export class QuestRecommendationService {
       description: '3개월간 월 소득의 20% 이상을 저축하고, 저축 목표를 설정하여 달성해보세요.',
       category: 'financial',
       difficulty: 'medium',
-      estimatedDuration: 60,
+      estimatedDuration: 4320, // 3개월
       xpReward: 300,
       skillRewards: { '자원관리능력': 200, '직업윤리': 100 },
-      tags: ['저축', '목표설정', '습관형성'],
-      aiReason: '현재 금융 건강도가 6/10으로 개선의 여지가 있습니다. 체계적인 저축 습관을 통해 재무 건전성을 향상시킬 수 있습니다.',
-      completionCriteria: ['월 저축 목표 설정', '3개월간 월 20% 이상 저축', '저축 목표 달성'],
+      tags: ['저축', '목표설정', '재무계획'],
+      completionCriteria: ['월 저축 목표 설정', '3개월간 지속적인 저축', '저축 성과 분석 리포트 작성'],
+      aiReason: '현재 금융 건강도가 6점으로 개선의 여지가 있습니다. 체계적인 저축 습관을 통해 금융 독립성을 높일 수 있습니다.',
       isPersonalized: true,
     };
   }
@@ -242,105 +330,53 @@ export class QuestRecommendationService {
       title: '학습 효율성 향상 프로젝트',
       description: '현재 학습 방법을 분석하고, 더 효율적인 학습 전략을 개발하여 적용해보세요.',
       category: 'academic',
-      difficulty: 'medium',
-      estimatedDuration: 120,
-      xpReward: 250,
-      skillRewards: { '자기개발능력': 150, '정보능력': 100 },
+      difficulty: 'hard',
+      estimatedDuration: 1440, // 1일
+      xpReward: 400,
+      skillRewards: { '정보능력': 200, '자기개발능력': 150, '문제해결능력': 50 },
       tags: ['학습전략', '효율성', '자기분석'],
-      aiReason: '학업 수준이 7/10으로 양호하지만, 더 체계적인 학습 방법을 통해 8점 이상으로 향상시킬 수 있습니다.',
-      completionCriteria: ['현재 학습 방법 분석', '새로운 학습 전략 개발', '2주간 적용 및 효과 측정'],
+      completionCriteria: ['현재 학습 방법 분석', '새로운 학습 전략 개발', '1주일간 적용 및 효과 측정'],
+      aiReason: '현재 학업 수준이 7점으로 양호하지만, 더 체계적이고 효율적인 학습 방법을 통해 8점 이상으로 향상시킬 수 있습니다.',
       isPersonalized: true,
     };
   }
 
   // 개인적 성장 퀘스트 생성
   private createPersonalGrowthQuest(profile: UserProfile): QuestRecommendation {
-    const interests = profile.preferences;
-    const goals = profile.goals;
-
     return {
       id: `personal_growth_${Date.now()}`,
-      title: '개인 브랜딩 포트폴리오 구축하기',
-      description: '자신의 강점과 목표를 바탕으로 개인 브랜딩 포트폴리오를 제작하고 온라인에 공유해보세요.',
-      category: 'career',
+      title: '자기계발 로드맵 작성하기',
+      description: '현재 상황과 목표를 분석하여 1년간의 자기계발 계획을 수립하고 실행해보세요.',
+      category: 'personal',
       difficulty: 'hard',
-      estimatedDuration: 360,
-      xpReward: 400,
-      skillRewards: { '자기개발능력': 200, '의사소통능력': 150, '정보능력': 50 },
-      tags: ['포트폴리오', '브랜딩', '자기PR'],
-      aiReason: '취업 준비와 전문성 향상이라는 목표에 맞춰, 체계적인 개인 브랜딩을 통해 경쟁력을 강화할 수 있습니다.',
-      completionCriteria: ['자기 분석 및 강점 정리', '포트폴리오 디자인 및 제작', '온라인 공유 및 피드백 수집'],
+      estimatedDuration: 2880, // 2일
+      xpReward: 500,
+      skillRewards: { '자기개발능력': 250, '정보능력': 150, '문제해결능력': 100 },
+      tags: ['자기계발', '계획수립', '목표달성'],
+      completionCriteria: ['현재 상황 분석', '1년간 목표 설정', '단계별 실행 계획 수립', '월간 진행상황 점검'],
+      aiReason: '사용자의 강점과 약점을 종합적으로 분석한 결과, 체계적인 자기계발 계획을 통해 균형 잡힌 성장을 도모할 수 있습니다.',
       isPersonalized: true,
     };
   }
 
-  // 폴백 퀘스트 (추천 실패 시)
+  // 기본 퀘스트 반환 (에러 발생 시)
   private getFallbackQuests(): QuestRecommendation[] {
     return [
       {
-        id: 'fallback_1',
-        title: '일일 학습 기록하기',
-        description: '오늘 학습한 내용을 간단히 기록하고 정리해보세요.',
-        category: 'academic',
+        id: `fallback_${Date.now()}`,
+        title: '기본 퀘스트',
+        description: '시스템 오류로 인해 기본 퀘스트가 제공됩니다.',
+        category: 'personal',
         difficulty: 'easy',
-        estimatedDuration: 15,
+        estimatedDuration: 60,
         xpReward: 50,
-        skillRewards: { '자기개발능력': 30, '정보능력': 20 },
-        tags: ['학습', '기록', '정리'],
-        aiReason: '기본적인 학습 습관을 형성하고 자기개발능력을 향상시킬 수 있습니다.',
-        completionCriteria: ['학습 내용 기록', '핵심 포인트 정리', '내일 계획 수립'],
-        isPersonalized: false,
-      },
-      {
-        id: 'fallback_2',
-        title: '금융 독서하기',
-        description: '금융 관련 책이나 글을 읽고 핵심 내용을 요약해보세요.',
-        category: 'financial',
-        difficulty: 'easy',
-        estimatedDuration: 45,
-        xpReward: 80,
-        skillRewards: { '정보능력': 50, '자원관리능력': 30 },
-        tags: ['독서', '금융', '학습'],
-        aiReason: '금융 지식을 쌓고 자원관리능력을 향상시킬 수 있습니다.',
-        completionCriteria: ['금융 관련 자료 읽기', '핵심 내용 요약', '개인적 적용점 찾기'],
+        skillRewards: { '자기개발능력': 30 },
+        tags: ['기본', '시스템'],
+        completionCriteria: ['기본 활동 완료'],
+        aiReason: '시스템 오류로 인한 기본 퀘스트입니다.',
         isPersonalized: false,
       },
     ];
-  }
-
-  // 퀘스트 완료 처리
-  async completeQuest(questId: string, completionData: any): Promise<boolean> {
-    try {
-      // 실제로는 백엔드 API에 퀘스트 완료 요청을 보내야 함
-      console.log('퀘스트 완료:', questId, completionData);
-      
-      // 성공 응답 시뮬레이션
-      return true;
-    } catch (error) {
-      console.error('퀘스트 완료 처리 실패:', error);
-      return false;
-    }
-  }
-
-  // 사용자 진행 상황 추적
-  async getUserProgress(): Promise<{
-    completedQuests: number;
-    totalXP: number;
-    currentStreak: number;
-    achievements: string[];
-  }> {
-    try {
-      // 실제로는 백엔드 API에서 사용자 진행 상황을 가져와야 함
-      return {
-        completedQuests: 12,
-        totalXP: 8500,
-        currentStreak: 5,
-        achievements: ['첫 퀘스트 완료', '일주일 연속 달성', '스킬 마스터'],
-      };
-    } catch (error) {
-      console.error('사용자 진행 상황 조회 실패:', error);
-      throw error;
-    }
   }
 }
 

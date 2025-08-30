@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini API 테스트</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #fff;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #fff;
+        }
+        button {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .result {
+            margin-top: 15px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            border-left: 4px solid #00ff88;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .error {
+            border-left-color: #ff4757;
+            background: rgba(255, 71, 87, 0.1);
+        }
+        .success {
+            border-left-color: #00ff88;
+            background: rgba(0, 255, 136, 0.1);
+        }
+        .loading {
+            border-left-color: #ffa502;
+            background: rgba(255, 165, 2, 0.1);
+        }
+        .api-key-input {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            font-size: 16px;
+            margin-bottom: 20px;
+        }
+        .status {
+            text-align: center;
+            padding: 10px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .status.success {
+            background: rgba(0, 255, 136, 0.2);
+            color: #00ff88;
+        }
+        .status.error {
+            background: rgba(255, 71, 87, 0.2);
+            color: #ff4757;
+        }
+        .status.warning {
+            background: rgba(255, 165, 2, 0.2);
+            color: #ffa502;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Gemini API 테스트</h1>
+        
+        <!-- API 키 입력 -->
+        <div class="test-section">
+            <h3>🔑 API 키 설정</h3>
+            <input type="text" id="apiKeyInput" class="api-key-input" 
+                   placeholder="Gemini API 키를 입력하세요" 
+                   value="AIzaSyDFKAfEDMhqiGcJuOz5jjuEAUGg3Yvn46k">
+            <button onclick="validateAPIKey()">API 키 검증</button>
+            <div id="apiKeyStatus"></div>
+        </div>
+
+        <!-- 기본 연결 테스트 -->
+        <div class="test-section">
+            <h3>🧪 기본 연결 테스트</h3>
+            <button onclick="testBasicConnection()">기본 연결 테스트</button>
+            <div id="basicTestResult" class="result"></div>
+        </div>
+
+        <!-- 금융 상담 테스트 -->
+        <div class="test-section">
+            <h3>💰 금융 상담 테스트</h3>
+            <button onclick="testFinancialAdvice()">금융 상담 요청</button>
+            <div id="financialTestResult" class="result"></div>
+        </div>
+
+        <!-- 예산 분석 테스트 -->
+        <div class="test-section">
+            <h3>📊 예산 분석 테스트</h3>
+            <button onclick="testBudgetAnalysis()">예산 분석 요청</button>
+            <div id="budgetTestResult" class="result"></div>
+        </div>
+
+        <!-- 투자 상담 테스트 -->
+        <div class="test-section">
+            <h3>📈 투자 상담 테스트</h3>
+            <button onclick="testInvestmentAdvice()">투자 상담 요청</button>
+            <div id="investmentTestResult" class="result"></div>
+        </div>
+
+        <!-- 전체 테스트 -->
+        <div class="test-section">
+            <h3>🚀 전체 테스트</h3>
+            <button onclick="runAllTests()">모든 테스트 실행</button>
+            <div id="allTestsResult" class="result"></div>
+        </div>
+    </div>
+
+    <script>
+        // Gemini API 설정
+        const GEMINI_API_KEY = 'AIzaSyDFKAfEDMhqiGcJuOz5jjuEAUGg3Yvn46k';
+        // 여러 가능한 엔드포인트 시도 (Google AI Studio 최신 정보 반영)
+        const BASE_URLS = [
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent',
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent',
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent',
+            'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent',
+            'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent',
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent'
+        ];
+        let currentUrlIndex = 0;
+        let BASE_URL = BASE_URLS[currentUrlIndex];
+
+        // API 키 검증
+        function validateAPIKey() {
+            const apiKey = document.getElementById('apiKeyInput').value;
+            const statusDiv = document.getElementById('apiKeyStatus');
+            
+            if (!apiKey) {
+                showStatus(statusDiv, 'API 키가 입력되지 않았습니다.', 'error');
+                return false;
+            }
+            
+            if (apiKey.length < 20) {
+                showStatus(statusDiv, 'API 키가 너무 짧습니다.', 'error');
+                return false;
+            }
+            
+            if (apiKey.startsWith('AIza')) {
+                showStatus(statusDiv, '✅ API 키 형식이 올바릅니다.', 'success');
+                return true;
+            } else {
+                showStatus(statusDiv, '⚠️ API 키 형식이 예상과 다릅니다.', 'warning');
+                return false;
+            }
+        }
+
+        // 상태 표시
+        function showStatus(element, message, type) {
+            element.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        // 결과 표시
+        function showResult(elementId, content, type = 'success') {
+            const element = document.getElementById(elementId);
+            element.textContent = content;
+            element.className = `result ${type}`;
+        }
+
+        // 로딩 표시
+        function showLoading(elementId) {
+            const element = document.getElementById(elementId);
+            element.textContent = '⏳ 요청 처리 중...';
+            element.className = 'result loading';
+        }
+
+        // Gemini API 호출
+        async function callGeminiAPI(prompt, maxTokens = 1024) {
+            const apiKey = document.getElementById('apiKeyInput').value;
+            
+            if (!validateAPIKey()) {
+                throw new Error('유효하지 않은 API 키입니다.');
+            }
+
+            const requestBody = {
+                contents: [{
+                    parts: [{
+                        text: prompt
+                    }]
+                }],
+                generationConfig: {
+                    temperature: 0.7,
+                    topK: 40,
+                    topP: 0.95,
+                    maxOutputTokens: maxTokens,
+                },
+                safetySettings: [
+                    {
+                        category: "HARM_CATEGORY_HARASSMENT",
+                        threshold: "BLOCK_MEDIUM_AND_ABOVE"
+                    },
+                    {
+                        category: "HARM_CATEGORY_HATE_SPEECH",
+                        threshold: "BLOCK_MEDIUM_AND_ABOVE"
+                    },
+                    {
+                        category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                        threshold: "BLOCK_MEDIUM_AND_ABOVE"
+                    },
+                    {
+                        category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+                        threshold: "BLOCK_MEDIUM_AND_ABOVE"
+                    }
+                ]
+            };
+
+            // 여러 엔드포인트 시도
+            for (let i = 0; i < BASE_URLS.length; i++) {
+                try {
+                    const currentUrl = BASE_URLS[i];
+                    console.log(`🔄 엔드포인트 시도 ${i + 1}: ${currentUrl}`);
+                    
+                    const response = await fetch(`${currentUrl}?key=${apiKey}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(requestBody),
+                    });
+
+                    if (response.ok) {
+                        console.log(`✅ 성공한 엔드포인트: ${currentUrl}`);
+                        const data = await response.json();
+                        
+                        if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+                            return data.candidates[0].content.parts[0].text;
+                        } else {
+                            throw new Error('응답에서 답변을 찾을 수 없습니다.');
+                        }
+                    } else if (response.status === 404) {
+                        console.log(`❌ 404 오류: ${currentUrl}`);
+                        continue; // 다음 엔드포인트 시도
+                    } else {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                } catch (error) {
+                    console.log(`❌ 엔드포인트 ${i + 1} 실패: ${error.message}`);
+                    if (i === BASE_URLS.length - 1) {
+                        // 모든 엔드포인트 실패
+                        throw new Error(`모든 Gemini API 엔드포인트 시도 실패. 마지막 오류: ${error.message}`);
+                    }
+                }
+            }
+        }
+
+        // 기본 연결 테스트
+        async function testBasicConnection() {
+            showLoading('basicTestResult');
+            
+            try {
+                const prompt = "안녕하세요! 간단히 'Hello World'라고 한국어로 답변해주세요.";
+                const result = await callGeminiAPI(prompt, 100);
+                
+                showResult('basicTestResult', 
+                    `✅ 기본 연결 테스트 성공!\n\n질문: ${prompt}\n\n답변: ${result}`, 
+                    'success'
+                );
+            } catch (error) {
+                showResult('basicTestResult', 
+                    `❌ 기본 연결 테스트 실패:\n\n오류: ${error.message}`, 
+                    'error'
+                );
+            }
+        }
+
+        // 금융 상담 테스트
+        async function testFinancialAdvice() {
+            showLoading('financialTestResult');
+            
+            try {
+                const prompt = `당신은 한국의 전문 금융 상담사입니다. 
+대학생이 월 50만원 용돈으로 어떻게 100만원을 모을 수 있을지 간단한 조언을 3가지만 한국어로 답변해주세요.
+
+답변 형식:
+- 핵심 답변
+- 구체적 조언 (3개)
+- 주의사항
+- 다음 단계`;
+
+                const result = await callGeminiAPI(prompt);
+                
+                showResult('financialTestResult', 
+                    `✅ 금융 상담 테스트 성공!\n\n질문: 대학생 절약 방법\n\n답변:\n${result}`, 
+                    'success'
+                );
+            } catch (error) {
+                showResult('financialTestResult', 
+                    `❌ 금융 상담 테스트 실패:\n\n오류: ${error.message}`, 
+                    'error'
+                );
+            }
+        }
+
+        // 예산 분석 테스트
+        async function testBudgetAnalysis() {
+            showLoading('budgetTestResult');
+            
+            try {
+                const prompt = `월 소득 100만원을 기준으로 예산 분석 및 조언을 제공해주세요.
+
+현재 지출 현황:
+- 식비: 30만원
+- 교통비: 10만원
+- 통신비: 5만원
+- 기타: 15만원
+
+목표: 6개월 내 200만원 모으기
+
+다음 사항을 분석해주세요:
+1. 지출 패턴 분석
+2. 절약 기회
+3. 목표 달성을 위한 예산 계획
+4. 구체적인 절약 방법
+5. 다음 달 예산 제안`;
+
+                const result = await callGeminiAPI(prompt);
+                
+                showResult('budgetTestResult', 
+                    `✅ 예산 분석 테스트 성공!\n\n분석 요청: 월 100만원 예산 분석\n\n분석 결과:\n${result}`, 
+                    'success'
+                );
+            } catch (error) {
+                showResult('budgetTestResult', 
+                    `❌ 예산 분석 테스트 실패:\n\n오류: ${error.message}`, 
+                    'error'
+                );
+            }
+        }
+
+        // 투자 상담 테스트
+        async function testInvestmentAdvice() {
+            showLoading('investmentTestResult');
+            
+            try {
+                const prompt = `투자 상담을 받고 싶습니다:
+
+투자 금액: 100만원
+투자 기간: 1년
+위험 성향: 보수적
+투자 목표: 안전한 자산 증식
+
+다음 사항을 고려하여 투자 조언을 제공해주세요:
+1. 적합한 투자 상품 추천
+2. 자산 배분 전략
+3. 위험 관리 방법
+4. 정기적인 포트폴리오 점검 방법
+5. 한국 투자 환경에서의 주의사항`;
+
+                const result = await callGeminiAPI(prompt);
+                
+                showResult('investmentTestResult', 
+                    `✅ 투자 상담 테스트 성공!\n\n상담 요청: 100만원 보수적 투자\n\n상담 결과:\n${result}`, 
+                    'success'
+                );
+            } catch (error) {
+                showResult('investmentTestResult', 
+                    `❌ 투자 상담 테스트 실패:\n\n오류: ${error.message}`, 
+                    'error'
+                );
+            }
+        }
+
+        // 전체 테스트 실행
+        async function runAllTests() {
+            showLoading('allTestsResult');
+            
+            const results = [];
+            const tests = [
+                { name: '기본 연결', func: testBasicConnection },
+                { name: '금융 상담', func: testFinancialAdvice },
+                { name: '예산 분석', func: testBudgetAnalysis },
+                { name: '투자 상담', func: testInvestmentAdvice }
+            ];
+            
+            for (const test of tests) {
+                try {
+                    results.push(`✅ ${test.name}: 성공`);
+                } catch (error) {
+                    results.push(`❌ ${test.name}: 실패 - ${error.message}`);
+                }
+                
+                // API 호출 간격 조절
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+            
+            showResult('allTestsResult', 
+                `🚀 전체 테스트 완료!\n\n${results.join('\n')}`, 
+                'success'
+            );
+        }
+
+        // 페이지 로드 시 API 키 검증
+        window.onload = function() {
+            validateAPIKey();
+        };
+    </script>
+</body>
+</html>

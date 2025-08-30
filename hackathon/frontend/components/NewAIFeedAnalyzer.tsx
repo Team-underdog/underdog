@@ -143,7 +143,7 @@ const NewAIFeedAnalyzer: React.FC = () => {
                 ]}>
                   <Text style={styles.experienceType}>{type}</Text>
                 </View>
-                <Text style={styles.experienceValue}>+{exp} XP</Text>
+                                  <Text style={styles.experienceValue}>+{exp} 크레도</Text>
               </View>
             );
           })}

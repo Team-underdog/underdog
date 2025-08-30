@@ -13,6 +13,13 @@ export interface CredoData {
   progress: number;
 }
 
+export interface XPData {
+  currentXP: number;
+  currentLevel: number;
+  nextLevelXP: number;
+  totalXP: number;
+}
+
 export interface LevelRequirement {
   level: number;
   credoRequired: number;

@@ -19,9 +19,63 @@ const config: ExpoConfig = {
   },
   ios: {
     bundleIdentifier: 'com.underdog.campuschronicle',
+    // iOS 네트워크 보안 설정 강화
+    infoPlist: {
+      NSAppTransportSecurity: {
+        NSAllowsArbitraryLoads: true,
+        NSAllowsArbitraryLoadsInWebContent: true,
+        NSExceptionDomains: {
+          'generativelanguage.googleapis.com': {
+            NSExceptionAllowsInsecureHTTPLoads: false,
+            NSExceptionMinimumTLSVersion: '1.2',
+            NSExceptionRequiresForwardSecrecy: true,
+            NSIncludesSubdomains: true,
+            NSExceptionAllowsArbitraryLoads: true
+          },
+          'googleapis.com': {
+            NSExceptionAllowsInsecureHTTPLoads: false,
+            NSExceptionMinimumTLSVersion: '1.2',
+            NSExceptionRequiresForwardSecrecy: true,
+            NSIncludesSubdomains: true,
+            NSExceptionAllowsArbitraryLoads: true
+          }
+        }
+      }
+    }
   },
   android: {
     package: 'com.underdog.campuschronicle',
+    // Android 네트워크 보안 설정 강화
+    permissions: [
+      'INTERNET',
+      'ACCESS_NETWORK_STATE',
+      'ACCESS_WIFI_STATE'
+    ],
+    // Android 네트워크 보안 설정
+    networkSecurityConfig: {
+      domainConfig: {
+        'generativelanguage.googleapis.com': {
+          cleartextTrafficPermitted: false,
+          networkSecurityConfig: {
+            domainConfig: {
+              'generativelanguage.googleapis.com': {
+                cleartextTrafficPermitted: false
+              }
+            }
+          }
+        },
+        'googleapis.com': {
+          cleartextTrafficPermitted: false,
+          networkSecurityConfig: {
+            domainConfig: {
+              'googleapis.com': {
+                cleartextTrafficPermitted: false
+              }
+            }
+          }
+        }
+      }
+    }
   },
   extra: {
     apiBaseUrl: 'http://localhost:8000',
@@ -37,6 +91,10 @@ const config: ExpoConfig = {
   experiments: {
     typedRoutes: true,
   },
+  // 네트워크 보안 설정
+  web: {
+    bundler: 'metro'
+  }
 };
 
 export default config;

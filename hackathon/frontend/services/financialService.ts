@@ -100,7 +100,7 @@ class FinancialService {
   async getBankAccounts(): Promise<BankAccount[]> {
     try {
       const headers = await this.getAuthHeaders();
-      const response = await fetch(`${API_BASE_URL}/financial/accounts`, {
+      const response = await fetch(`${API_ENDPOINTS.FINANCIAL.ACCOUNTS}`, {
         method: 'GET',
         headers,
       });
@@ -123,7 +123,7 @@ class FinancialService {
       if (accountId) params.append('account_id', accountId.toString());
       params.append('limit', limit.toString());
 
-      const response = await fetch(`${API_BASE_URL}/financial/transactions?${params}`, {
+      const response = await fetch(`${API_ENDPOINTS.FINANCIAL.TRANSACTIONS}?${params}`, {
         method: 'GET',
         headers,
       });
@@ -145,7 +145,7 @@ class FinancialService {
       const params = new URLSearchParams();
       if (productType) params.append('product_type', productType);
 
-      const response = await fetch(`${API_BASE_URL}/financial/products?${params}`, {
+      const response = await fetch(`${API_ENDPOINTS.FINANCIAL.PRODUCTS}?${params}`, {
         method: 'GET',
         headers,
       });
@@ -164,7 +164,7 @@ class FinancialService {
   async getUserProducts(): Promise<UserProduct[]> {
     try {
       const headers = await this.getAuthHeaders();
-      const response = await fetch(`${API_BASE_URL}/financial/user-products`, {
+      const response = await fetch(`${API_ENDPOINTS.FINANCIAL.PRODUCTS}`, {
         method: 'GET',
         headers,
       });
@@ -183,7 +183,7 @@ class FinancialService {
   async getCreditScore(): Promise<CreditScore> {
     try {
       const headers = await this.getAuthHeaders();
-      const response = await fetch(`${API_BASE_URL}/financial/credit-score`, {
+      const response = await fetch(`${API_ENDPOINTS.FINANCIAL.PRODUCTS}`, {
         method: 'GET',
         headers,
       });
@@ -202,7 +202,7 @@ class FinancialService {
   async getFinancialSummary(): Promise<FinancialSummary> {
     try {
       const headers = await this.getAuthHeaders();
-      const response = await fetch(`${API_BASE_URL}/financial/summary`, {
+      const response = await fetch(`${API_ENDPOINTS.FINANCIAL.SUMMARY}`, {
         method: 'GET',
         headers,
       });
@@ -393,31 +393,102 @@ class FinancialService {
   // 사용자별 금융 요약 조회 (크로니클용)
   async getUserFinancialSummary(userId?: string): Promise<FinancialSummary> {
     try {
+      console.log('🔍 getUserFinancialSummary 시작, userId:', userId);
       const headers = await this.getAuthHeaders();
-      const response = await fetch(API_ENDPOINTS.FINANCIAL.SUMMARY, {
+      console.log('🔑 인증 헤더:', headers);
+      
+      const url = API_ENDPOINTS.FINANCIAL.SUMMARY;
+      console.log('🌐 API URL:', url);
+      
+      const response = await fetch(url, {
         method: 'GET',
         headers,
       });
 
+      console.log('📡 API 응답 상태:', response.status);
+      console.log('📡 API 응답 헤더:', response.headers);
+
       if (!response.ok) {
         console.warn(`⚠️ 금융 요약 API 응답 오류: ${response.status}`);
-        // 목업 데이터 반환
-        return this.getMockFinancialSummary();
+        // API 오류 시 빈 데이터 반환
+        const emptyData = {
+          total_balance: 0,
+          total_assets: 0,
+          total_liabilities: 0,
+          net_worth: 0,
+          credit_score: {
+            id: 0,
+            score: 0,
+            grade: 'N/A',
+            last_updated: new Date().toISOString(),
+            credit_limit: 0,
+            used_credit: 0,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          },
+          accounts: [],
+          recent_transactions: [],
+          products: []
+        };
+        console.log('📊 빈 데이터 반환:', emptyData);
+        return emptyData;
       }
 
       const data = await response.json();
+      console.log('📥 API 응답 데이터:', data);
       
       // 응답 데이터 검증
       if (!data || typeof data !== 'object') {
-        console.warn('⚠️ 금융 요약 API 응답이 객체가 아님, 목업 데이터 반환');
-        return this.getMockFinancialSummary();
+        console.warn('⚠️ 금융 요약 API 응답이 객체가 아님, 빈 데이터 반환');
+        const emptyData = {
+          total_balance: 0,
+          total_assets: 0,
+          total_liabilities: 0,
+          net_worth: 0,
+          credit_score: {
+            id: 0,
+            score: 0,
+            grade: 'N/A',
+            last_updated: new Date().toISOString(),
+            credit_limit: 0,
+            used_credit: 0,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          },
+          accounts: [],
+          recent_transactions: [],
+          products: []
+        };
+        console.log('📊 빈 데이터 반환:', emptyData);
+        return emptyData;
       }
 
+      console.log('✅ 최종 반환 데이터:', data);
       return data;
     } catch (error) {
       console.error('❌ 사용자 금융 요약 조회 실패:', error);
-      // 목업 데이터 반환
-      return this.getMockFinancialSummary();
+      // 에러 시 빈 데이터 반환
+      const emptyData = {
+        total_balance: 0,
+        total_assets: 0,
+        total_liabilities: 0,
+        net_worth: 0,
+        credit_score: {
+          id: 0,
+          score: 0,
+          grade: 'N/A',
+          last_updated: new Date().toISOString(),
+          credit_limit: 0,
+          used_credit: 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        },
+        accounts: [],
+        recent_transactions: [],
+        products: []
+      };
+      console.log('📊 에러 시 빈 데이터 반환:', emptyData);
+      return emptyData;
     }
   }
 
@@ -465,23 +536,23 @@ class FinancialService {
 
       if (!response.ok) {
         console.warn(`⚠️ 거래내역 API 응답 오류: ${response.status}`);
-        // 목업 데이터 반환
-        return this.getMockFinancialSummary().recent_transactions;
+        // API 오류 시 빈 배열 반환
+        return [];
       }
 
       const data = await response.json();
       
       // 응답 데이터 검증
       if (!data || !Array.isArray(data)) {
-        console.warn('⚠️ 거래내역 API 응답이 배열이 아님, 목업 데이터 반환');
-        return this.getMockFinancialSummary().recent_transactions;
+        console.warn('⚠️ 거래내역 API 응답이 배열이 아님, 빈 배열 반환');
+        return [];
       }
 
       return data;
     } catch (error) {
       console.error('❌ 최근 거래내역 조회 실패:', error);
-      // 목업 데이터 반환
-      return this.getMockFinancialSummary().recent_transactions;
+      // 에러 시 빈 배열 반환
+      return [];
     }
   }
 

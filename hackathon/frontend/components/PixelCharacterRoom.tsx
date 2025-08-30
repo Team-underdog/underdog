@@ -300,8 +300,8 @@ export const PixelCharacterRoom: React.FC<PixelCharacterRoomProps> = ({
                 <Text style={styles.statValue}>{characterStats.level}</Text>
               </View>
               <View style={styles.statRow}>
-                <Text style={styles.statLabel}>총 XP</Text>
-                <Text style={styles.statValue}>{characterStats.totalXP.toLocaleString()}</Text>
+                        <Text style={styles.statLabel}>총 크레도</Text>
+        <Text style={styles.statValue}>{characterStats.totalXP.toLocaleString()}</Text>
               </View>
               <View style={styles.statRow}>
                 <Text style={styles.statLabel}>크레도 점수</Text>

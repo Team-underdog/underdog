@@ -55,6 +55,12 @@ export default function CampusCredoHome() {
   useEffect(() => {
     if (userData?.id) {
       loadXPData();
+      // userData가 설정되면 금융 데이터도 로드
+      const token = SecureStore.getItemAsync('authToken').then(token => {
+        if (token) {
+          loadFinancialData(token);
+        }
+      });
     }
   }, [userData]);
 
@@ -70,7 +76,7 @@ export default function CampusCredoHome() {
         return;
       }
 
-      const apiBaseUrl = 'http://localhost:8000';
+      const apiBaseUrl = 'http://192.168.10.45:8000';
       console.log('🔗 API URL:', `${apiBaseUrl}/api/auth/me`);
 
       const response = await fetch(`${apiBaseUrl}/api/auth/me`, {
@@ -87,10 +93,7 @@ export default function CampusCredoHome() {
       if (response.ok) {
         const data = await response.json();
         console.log('✅ 사용자 데이터 수신:', data);
-        setUserData(data);
-        
-        // 금융 데이터 로딩
-        await loadFinancialData(token);
+        setUserData(data as UserData);
       } else {
         console.log('❌ API 응답 실패:', response.status);
         if (response.status === 401) {
@@ -106,13 +109,19 @@ export default function CampusCredoHome() {
     }
   };
 
-  const loadFinancialData = async (userKey: string) => {
+  const loadFinancialData = async (token: string) => {
     try {
       console.log('💰 금융 데이터 로딩 시작');
-      const summary = await financialService.getUserFinancialSummary(userKey);
-      setFinancialData(summary);
-      
-      console.log('✅ 금융 데이터 로딩 완료:', summary);
+      if (userData?.id) {
+        console.log('👤 사용자 ID:', userData.id);
+        const summary = await financialService.getUserFinancialSummary(userData.id.toString());
+        console.log('📊 받은 금융 데이터:', summary);
+        console.log('📊 계좌 수:', summary?.accounts?.length || 0);
+        console.log('📊 거래내역 수:', summary?.recent_transactions?.length || 0);
+        setFinancialData(summary);
+        
+        console.log('✅ 금융 데이터 로딩 완료:', summary);
+      }
     } catch (error) {
       console.error('❌ 금융 데이터 로딩 실패:', error);
       // 에러 시 기본값 유지
@@ -312,7 +321,7 @@ export default function CampusCredoHome() {
                       <Text style={styles.accountNumber}>
                         {financialData?.accounts && financialData.accounts.length > 0 
                           ? `${financialData.accounts[0].bank_name} ${financialData.accounts[0].account_number}`
-                          : '신한 110-373-218081'
+                          : '계좌 정보 로딩 중...'
                         }
                       </Text>
                       <TouchableOpacity style={styles.copyButton}>
@@ -329,8 +338,8 @@ export default function CampusCredoHome() {
                 <View style={styles.balanceSection}>
                   <View style={styles.balanceRow}>
                     <Text style={styles.balanceAmount}>
-                      {financialData?.total_balance ? 
-                        `${financialData.total_balance.toLocaleString()}원` : 
+                      {financialData?.accounts && financialData.accounts.length > 0 
+                        ? `${financialData.accounts[0].balance.toLocaleString()}원` : 
                         '로딩 중...'
                       }
                     </Text>
@@ -397,18 +406,54 @@ export default function CampusCredoHome() {
                     // 거래내역이 없을 때 기본 표시
                     <>
                       <View style={styles.contactCard}>
-                        <View style={[styles.contactIcon, { backgroundColor: '#3B82F6' }]}>
+                        <View style={[styles.contactIcon, { backgroundColor: '#6B7280' }]}>
                           <Text style={styles.contactIconText}>🏦</Text>
                         </View>
-                        <Text style={styles.contactName}>거래내역 없음</Text>
-                        <Text style={styles.contactAmount}>-</Text>
+                        <View style={styles.contactInfo}>
+                          <Text style={styles.contactName}>
+                            {financialData?.recent_transactions && financialData.recent_transactions.length > 0 
+                              ? '거래내역 로딩 중...' 
+                              : '거래내역 없음'
+                            }
+                          </Text>
+                          <Text style={styles.contactType}>
+                            {financialData?.recent_transactions && financialData.recent_transactions.length > 0 
+                              ? '데이터 로딩 중' 
+                              : '첫 거래를 시작하세요'
+                            }
+                          </Text>
+                        </View>
+                        <Text style={[styles.contactAmount, { color: '#6B7280' }]}>
+                          {financialData?.recent_transactions && financialData.recent_transactions.length > 0 
+                            ? '...' 
+                            : '-'
+                          }
+                        </Text>
                       </View>
                       <View style={styles.contactCard}>
                         <View style={[styles.contactIcon, { backgroundColor: '#8B5CF6' }]}>
                           <Text style={styles.contactIconText}>📱</Text>
                         </View>
-                        <Text style={styles.contactName}>첫 거래를</Text>
-                        <Text style={styles.contactAmount}>시작하세요</Text>
+                        <View style={styles.contactInfo}>
+                          <Text style={styles.contactName}>
+                            {financialData?.recent_transactions && financialData.recent_transactions.length > 0 
+                              ? '추가 거래내역' 
+                              : '첫 거래를 시작하세요'
+                            }
+                          </Text>
+                          <Text style={styles.contactType}>
+                            {financialData?.recent_transactions && financialData.recent_transactions.length > 0 
+                              ? '더 많은 거래 보기' 
+                              : '새로운 거래 시작'
+                            }
+                          </Text>
+                        </View>
+                        <Text style={[styles.contactAmount, { color: '#8B5CF6' }]}>
+                          {financialData?.recent_transactions && financialData.recent_transactions.length > 0 
+                            ? '→' 
+                            : '시작'
+                          }
+                        </Text>
                       </View>
                     </>
                   )}

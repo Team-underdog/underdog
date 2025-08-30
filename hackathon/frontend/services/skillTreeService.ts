@@ -1,4 +1,5 @@
 import { API_ENDPOINTS } from '../config/api';
+import CredoService from './credoService';
 
 // 스킬 카테고리 타입
 export type SkillCategory = 'academic' | 'financial' | 'chronicle';
@@ -100,6 +101,429 @@ export interface ChronicleData {
     available: number;
   };
 }
+
+// 확장된 스킬트리 데이터 구조
+export interface SkillTreeTier {
+  tier: number;
+  icon: string;
+  skillName: string;
+  levelUpConditions: string[];
+  dependencySkills: string[];
+  isUnlocked: boolean;
+  currentProgress: number;
+  maxProgress: number;
+  rewards: {
+    credo: number;
+    credits: number;
+    title?: string;
+  };
+}
+
+export interface SkillTreeCategory {
+  name: string;
+  description: string;
+  icon: string;
+  tiers: SkillTreeTier[];
+}
+
+export interface ExpandedSkillTree {
+  academic: {
+    basicSkills: SkillTreeCategory;
+    majorDeepening: SkillTreeCategory;
+    selfDirectedLearning: SkillTreeCategory;
+  };
+  financial: {
+    consumptionSavings: SkillTreeCategory;
+    investmentCredit: SkillTreeCategory;
+    financialKnowledge: SkillTreeCategory;
+  };
+}
+
+// 확장된 스킬트리 데이터
+export const EXPANDED_SKILL_TREE_DATA: ExpandedSkillTree = {
+  academic: {
+    basicSkills: {
+      name: "기초 학업 능력",
+      description: "학업의 기본이 되는 핵심 능력을 단계별로 향상시킵니다",
+      icon: "📚",
+      tiers: [
+        {
+          tier: 1,
+          icon: "📚",
+          skillName: "출석 마스터",
+          levelUpConditions: [
+            "누적 출석 30회 달성",
+            "2주 연속 100% 출석"
+          ],
+          dependencySkills: [],
+          isUnlocked: true,
+          currentProgress: 0,
+          maxProgress: 30,
+          rewards: { credo: 100, credits: 50, title: "출석왕" }
+        },
+        {
+          tier: 2,
+          icon: "⏱️",
+          skillName: "시간 관리",
+          levelUpConditions: [
+            "'주간 학습 계획' 퀘스트 5회",
+            "지각/결석 없이 한 달"
+          ],
+          dependencySkills: ["출석 마스터"],
+          isUnlocked: false,
+          currentProgress: 0,
+          maxProgress: 5,
+          rewards: { credo: 200, credits: 100, title: "시간의 지배자" }
+        },
+        {
+          tier: 3,
+          icon: "✍️",
+          skillName: "과제 전문가",
+          levelUpConditions: [
+            "A학점 과제 3회 이상",
+            "제출 기한 100% 준수"
+          ],
+          dependencySkills: ["시간 관리"],
+          isUnlocked: false,
+          currentProgress: 0,
+          maxProgress: 3,
+          rewards: { credo: 300, credits: 150, title: "과제 마스터" }
+        },
+        {
+          tier: 4,
+          icon: "💯",
+          skillName: "성적 우수",
+          levelUpConditions: [
+            "전체 학점 3.8 이상 달성",
+            "'성적 향상' 퀘스트 완료"
+          ],
+          dependencySkills: ["과제 전문가"],
+          isUnlocked: false,
+          currentProgress: 0,
+          maxProgress: 3.8,
+          rewards: { credo: 500, credits: 300, title: "학업의 달인" }
+        }
+      ]
+    },
+    majorDeepening: {
+      name: "전공 심화",
+      description: "전공 분야의 전문성을 단계별로 심화시킵니다",
+      icon: "🎓",
+      tiers: [
+        {
+          tier: 2,
+          icon: "📖",
+          skillName: "전공 기초",
+          levelUpConditions: [
+            "전공 필수 과목 B+ 이상",
+            "전공 관련 도서 5권 완독"
+          ],
+          dependencySkills: ["시간 관리"],
+          isUnlocked: false,
+          currentProgress: 0,
+          maxProgress: 5,
+          rewards: { credo: 250, credits: 120, title: "전공 입문자" }
+        },
+        {
+          tier: 3,
+          icon: "💻",
+          skillName: "프로그래밍",
+          levelUpConditions: [
+            "'알고리즘 문제 풀기' 퀘스트 10회",
+            "프로그래밍 관련 과목 A학점"
+          ],
+          dependencySkills: ["전공 기초"],
+          isUnlocked: false,
+          currentProgress: 0,
+          maxProgress: 10,
+          rewards: { credo: 400, credits: 200, title: "코딩 마스터" }
+        },
+        {
+          tier: 4,
+          icon: "🔬",
+          skillName: "연구 참여",
+          levelUpConditions: [
+            "교수님 연구 프로젝트 참여",
+            "'학회 논문 탐색' 퀘스트 완료"
+          ],
+          dependencySkills: ["프로그래밍"],
+          isUnlocked: false,
+          currentProgress: 0,
+          maxProgress: 1,
+          rewards: { credo: 600, credits: 350, title: "연구원" }
+        },
+        {
+          tier: 5,
+          icon: "🏆",
+          skillName: "공모전 수상",
+          levelUpConditions: [
+            "교내/외 공모전 입상",
+            "팀 프로젝트 리더 역할 수행"
+          ],
+          dependencySkills: ["연구 참여"],
+          isUnlocked: false,
+          currentProgress: 0,
+          maxProgress: 1,
+          rewards: { credo: 800, credits: 500, title: "공모전 챔피언" }
+        }
+      ]
+    },
+    selfDirectedLearning: {
+      name: "자기주도 학습",
+      description: "자발적이고 체계적인 학습 능력을 개발합니다",
+      icon: "🚀",
+      tiers: [
+        {
+          tier: 2,
+          icon: "🏛️",
+          skillName: "도서관 활용",
+          levelUpConditions: [
+            "누적 도서관 이용 50시간",
+            "논문 검색 서비스 10회 이용"
+          ],
+          dependencySkills: ["시간 관리"],
+          isUnlocked: false,
+          currentProgress: 0,
+          maxProgress: 50,
+          rewards: { credo: 250, credits: 120, title: "도서관 탐험가" }
+        },
+        {
+          tier: 3,
+          icon: "🌐",
+          skillName: "온라인 강의",
+          levelUpConditions: [
+            "K-MOOC 등 온라인 강의 3개 수료",
+            "'나만의 학습 노트' 퀘스트 완료"
+          ],
+          dependencySkills: ["도서관 활용"],
+          isUnlocked: false,
+          currentProgress: 0,
+          maxProgress: 3,
+          rewards: { credo: 400, credits: 200, title: "온라인 학습자" }
+        },
+        {
+          tier: 4,
+          icon: "🗣️",
+          skillName: "스터디 그룹",
+          levelUpConditions: [
+            "스터디 그룹 3개월 이상 활동",
+            "'스터디 발표' 퀘스트 5회 완료"
+          ],
+          dependencySkills: ["온라인 강의"],
+          isUnlocked: false,
+          currentProgress: 0,
+          maxProgress: 5,
+          rewards: { credo: 600, credits: 350, title: "스터디 리더" }
+        },
+        {
+          tier: 5,
+          icon: "🧑‍🏫",
+          skillName: "학업 튜터링",
+          levelUpConditions: [
+            "교내 튜터링 프로그램 참여 (튜터)",
+            "후배에게 전공 지식 공유"
+          ],
+          dependencySkills: ["스터디 그룹"],
+          isUnlocked: false,
+          currentProgress: 0,
+          maxProgress: 1,
+          rewards: { credo: 800, credits: 500, title: "튜터 마스터" }
+        }
+      ]
+    }
+  },
+  financial: {
+    consumptionSavings: {
+      name: "소비 및 저축 관리",
+      description: "체계적인 소비와 저축 습관을 기릅니다",
+      icon: "💰",
+      tiers: [
+        {
+          tier: 1,
+          icon: "💵",
+          skillName: "예산 수립",
+          levelUpConditions: [
+            "'월간 예산 설정' 퀘스트 3회",
+            "예산 내 지출 성공률 80%"
+          ],
+          dependencySkills: [],
+          isUnlocked: true,
+          currentProgress: 0,
+          maxProgress: 3,
+          rewards: { credo: 100, credits: 50, title: "예산 관리자" }
+        },
+        {
+          tier: 2,
+          icon: "📊",
+          skillName: "소비 분석",
+          levelUpConditions: [
+            "주간/월간 소비 리포트 확인 10회",
+            "'불필요 지출 찾기' 퀘스트 완료"
+          ],
+          dependencySkills: ["예산 수립"],
+          isUnlocked: false,
+          currentProgress: 0,
+          maxProgress: 10,
+          rewards: { credo: 200, credits: 100, title: "소비 분석가" }
+        },
+        {
+          tier: 3,
+          icon: "🐷",
+          skillName: "소액 저축",
+          levelUpConditions: [
+            "'잔돈 저축' 퀘스트 20회 달성",
+            "비상금 30만원 모으기"
+          ],
+          dependencySkills: ["소비 분석"],
+          isUnlocked: false,
+          currentProgress: 0,
+          maxProgress: 20,
+          rewards: { credo: 300, credits: 150, title: "저축 마스터" }
+        },
+        {
+          tier: 4,
+          icon: "🏦",
+          skillName: "목표 저축",
+          levelUpConditions: [
+            "'한 학기 100만원 모으기' 달성",
+            "주택청약종합저축 가입 및 유지"
+          ],
+          dependencySkills: ["소액 저축"],
+          isUnlocked: false,
+          currentProgress: 0,
+          maxProgress: 1000000,
+          rewards: { credo: 500, credits: 300, title: "저축 달인" }
+        }
+      ]
+    },
+    investmentCredit: {
+      name: "투자 및 신용 관리",
+      description: "투자와 신용 관리의 기초를 다집니다",
+      icon: "📈",
+      tiers: [
+        {
+          tier: 2,
+          icon: "💳",
+          skillName: "신용 점수 관리",
+          levelUpConditions: [
+            "신용점수 800점 이상 달성",
+            "'내 신용점수 확인' 퀘스트 5회"
+          ],
+          dependencySkills: ["소비 분석"],
+          isUnlocked: false,
+          currentProgress: 0,
+          maxProgress: 800,
+          rewards: { credo: 250, credits: 120, title: "신용 관리자" }
+        },
+        {
+          tier: 3,
+          icon: "📈",
+          skillName: "모의 투자",
+          levelUpConditions: [
+            "모의 투자 수익률 5% 달성",
+            "'경제 뉴스 스크랩' 퀘스트 10회"
+          ],
+          dependencySkills: ["신용 점수 관리"],
+          isUnlocked: false,
+          currentProgress: 0,
+          maxProgress: 5,
+          rewards: { credo: 400, credits: 200, title: "투자 연습생" }
+        },
+        {
+          tier: 4,
+          icon: "💹",
+          skillName: "실전 투자",
+          levelUpConditions: [
+            "소액 투자 시작 (주식, 펀드 등)",
+            "'나만의 투자 원칙 세우기' 퀘스트"
+          ],
+          dependencySkills: ["모의 투자"],
+          isUnlocked: false,
+          currentProgress: 0,
+          maxProgress: 1,
+          rewards: { credo: 600, credits: 350, title: "실전 투자자" }
+        },
+        {
+          tier: 5,
+          icon: "🛡️",
+          skillName: "리스크 관리",
+          levelUpConditions: [
+            "분산 투자 포트폴리오 구성",
+            "'금융 사기 예방' 퀘스트 완료"
+          ],
+          dependencySkills: ["실전 투자"],
+          isUnlocked: false,
+          currentProgress: 0,
+          maxProgress: 1,
+          rewards: { credo: 800, credits: 500, title: "리스크 마스터" }
+        }
+      ]
+    },
+    financialKnowledge: {
+      name: "금융 지식",
+      description: "체계적인 금융 지식을 습득합니다",
+      icon: "🎓",
+      tiers: [
+        {
+          tier: 2,
+          icon: "📰",
+          skillName: "경제 기사 읽기",
+          levelUpConditions: [
+            "경제 기사 주 3회 이상 읽기",
+            "'경제 용어 퀴즈' 퀘스트 통과"
+          ],
+          dependencySkills: ["소비 분석"],
+          isUnlocked: false,
+          currentProgress: 0,
+          maxProgress: 3,
+          rewards: { credo: 250, credits: 120, title: "경제 독서가" }
+        },
+        {
+          tier: 3,
+          icon: "🏛️",
+          skillName: "금융 상품 이해",
+          levelUpConditions: [
+            "예/적금 상품 비교분석 퀘스트",
+            "'나에게 맞는 카드 찾기' 퀘스트"
+          ],
+          dependencySkills: ["경제 기사 읽기"],
+          isUnlocked: false,
+          currentProgress: 0,
+          maxProgress: 2,
+          rewards: { credo: 400, credits: 200, title: "금융 상품 전문가" }
+        },
+        {
+          tier: 4,
+          icon: "⚖️",
+          skillName: "세금과 연금",
+          levelUpConditions: [
+            "'연말정산 기초' 퀘스트 완료",
+            "'국민연금 알아보기' 퀘스트 완료"
+          ],
+          dependencySkills: ["금융 상품 이해"],
+          isUnlocked: false,
+          currentProgress: 0,
+          maxProgress: 2,
+          rewards: { credo: 600, credits: 350, title: "세무 전문가" }
+        },
+        {
+          tier: 5,
+          icon: "🎓",
+          skillName: "금융 전문가",
+          levelUpConditions: [
+            "금융 관련 자격증(AFPK 등) 준비",
+            "'금융 포트폴리오 발표' 퀘스트"
+          ],
+          dependencySkills: ["세금과 연금"],
+          isUnlocked: false,
+          currentProgress: 0,
+          maxProgress: 1,
+          rewards: { credo: 800, credits: 500, title: "금융 마스터" }
+        }
+      ]
+    }
+  }
+};
 
 class SkillTreeService {
   // 학사 스킬트리 데이터 가져오기
@@ -553,6 +977,222 @@ class SkillTreeService {
         '공무원, 연구원'
       ]
     };
+  }
+
+  // 확장된 스킬트리 관련 메서드들
+  getExpandedSkillTree(): ExpandedSkillTree {
+    return EXPANDED_SKILL_TREE_DATA;
+  }
+
+  // 특정 카테고리의 스킬트리 가져오기
+  getSkillTreeCategory(category: keyof ExpandedSkillTree, subCategory: string): SkillTreeCategory | null {
+    const tree = this.getExpandedSkillTree();
+    const mainCategory = tree[category];
+    
+    if (mainCategory && mainCategory[subCategory as keyof typeof mainCategory]) {
+      return mainCategory[subCategory as keyof typeof mainCategory];
+    }
+    
+    return null;
+  }
+
+  // 사용자 진행도 업데이트
+  updateUserProgress(
+    category: keyof ExpandedSkillTree,
+    subCategory: string,
+    skillName: string,
+    progress: number
+  ): boolean {
+    const categoryData = this.getSkillTreeCategory(category, subCategory);
+    if (!categoryData) return false;
+
+    const skill = categoryData.tiers.find(tier => tier.skillName === skillName);
+    if (!skill) return false;
+
+    skill.currentProgress = Math.min(progress, skill.maxProgress);
+    
+    // 진행도가 100%에 도달하면 스킬 해금
+    if (skill.currentProgress >= skill.maxProgress) {
+      skill.isUnlocked = true;
+      this.unlockDependentSkills(category, subCategory, skillName);
+      return true; // 스킬 해금됨
+    }
+
+    return false;
+  }
+
+  // 의존 스킬 해금
+  private unlockDependentSkills(
+    category: keyof ExpandedSkillTree,
+    subCategory: string,
+    unlockedSkillName: string
+  ): void {
+    const categoryData = this.getSkillTreeCategory(category, subCategory);
+    if (!categoryData) return;
+
+    // 의존 스킬이 해금된 스킬을 가진 스킬들을 찾아서 해금 가능 여부 확인
+    categoryData.tiers.forEach(tier => {
+      if (tier.dependencySkills.includes(unlockedSkillName)) {
+        // 모든 의존 스킬이 해금되었는지 확인
+        const allDependenciesUnlocked = tier.dependencySkills.every(depSkill => {
+          const depTier = categoryData.tiers.find(t => t.skillName === depSkill);
+          return depTier?.isUnlocked || false;
+        });
+
+        if (allDependenciesUnlocked) {
+          tier.isUnlocked = true;
+        }
+      }
+    });
+  }
+
+  // 사용자 진행도 가져오기
+  getUserProgress(
+    category: keyof ExpandedSkillTree,
+    subCategory: string
+  ): { unlocked: number; total: number; percentage: number } {
+    const categoryData = this.getSkillTreeCategory(category, subCategory);
+    if (!categoryData) return { unlocked: 0, total: 0, percentage: 0 };
+
+    const unlocked = categoryData.tiers.filter(tier => tier.isUnlocked).length;
+    const total = categoryData.tiers.length;
+    const percentage = total > 0 ? Math.round((unlocked / total) * 100) : 0;
+
+    return { unlocked, total, percentage };
+  }
+
+  // 전체 스킬트리 진행도
+  getOverallProgress(): { academic: number; financial: number; total: number } {
+    const academicProgress = this.getAcademicProgress();
+    const financialProgress = this.getFinancialProgress();
+    
+    const total = (academicProgress + financialProgress) / 2;
+    
+    return {
+      academic: academicProgress,
+      financial: financialProgress,
+      total: Math.round(total)
+    };
+  }
+
+  // 학업 스킬트리 진행도
+  private getAcademicProgress(): number {
+    const basicSkills = this.getUserProgress('academic', 'basicSkills');
+    const majorDeepening = this.getUserProgress('academic', 'majorDeepening');
+    const selfDirectedLearning = this.getUserProgress('academic', 'selfDirectedLearning');
+
+    return Math.round((basicSkills.percentage + majorDeepening.percentage + selfDirectedLearning.percentage) / 3);
+  }
+
+  // 금융 스킬트리 진행도
+  private getFinancialProgress(): number {
+    const consumptionSavings = this.getUserProgress('financial', 'consumptionSavings');
+    const investmentCredit = this.getUserProgress('financial', 'investmentCredit');
+    const financialKnowledge = this.getUserProgress('financial', 'financialKnowledge');
+
+    return Math.round((consumptionSavings.percentage + investmentCredit.percentage + financialKnowledge.percentage) / 3);
+  }
+
+  // 스킬 해금 시 보상 지급
+  getSkillRewards(
+    category: keyof ExpandedSkillTree,
+    subCategory: string,
+    skillName: string
+  ): { credo: number; credits: number; title?: string } | null {
+    const categoryData = this.getSkillTreeCategory(category, subCategory);
+    if (!categoryData) return null;
+
+    const skill = categoryData.tiers.find(tier => tier.skillName === skillName);
+    return skill?.rewards || null;
+  }
+
+  // 스킬 해금 시 크레도 지급 (중앙 서비스 연동)
+  unlockSkillWithRewards(
+    category: keyof ExpandedSkillTree,
+    subCategory: string,
+    skillName: string
+  ): boolean {
+    const rewards = this.getSkillRewards(category, subCategory, skillName);
+    if (!rewards) return false;
+
+    // 중앙 크레도 서비스에 크레도 지급
+    const credoService = CredoService.getInstance();
+    const success = credoService.earnCredo(
+      rewards.credo, 
+      'skill_unlock', 
+      `${category} - ${subCategory} - ${skillName} 스킬 해금`
+    );
+
+    if (success) {
+      console.log(`🎉 스킬 해금 보상 지급: ${rewards.credo} 크레도`);
+    }
+
+    return success;
+  }
+
+  // 다음 해금 가능한 스킬 찾기
+  getNextUnlockableSkills(
+    category: keyof ExpandedSkillTree,
+    subCategory: string
+  ): SkillTreeTier[] {
+    const categoryData = this.getSkillTreeCategory(category, subCategory);
+    if (!categoryData) return [];
+
+    return categoryData.tiers.filter(tier => {
+      if (tier.isUnlocked) return false;
+      
+      // 의존 스킬이 모두 해금되었는지 확인
+      return tier.dependencySkills.every(depSkill => {
+        const depTier = categoryData.tiers.find(t => t.skillName === depSkill);
+        return depTier?.isUnlocked || false;
+      });
+    });
+  }
+
+  // 스킬트리 시각화 데이터 생성
+  getSkillTreeVisualization(
+    category: keyof ExpandedSkillTree,
+    subCategory: string
+  ): {
+    nodes: Array<{
+      id: string;
+      label: string;
+      icon: string;
+      tier: number;
+      isUnlocked: boolean;
+      progress: number;
+    }>;
+    edges: Array<{
+      from: string;
+      to: string;
+      type: 'dependency' | 'progression';
+    }>;
+  } {
+    const categoryData = this.getSkillTreeCategory(category, subCategory);
+    if (!categoryData) return { nodes: [], edges: [] };
+
+    const nodes = categoryData.tiers.map(tier => ({
+      id: tier.skillName,
+      label: tier.skillName,
+      icon: tier.icon,
+      tier: tier.tier,
+      isUnlocked: tier.isUnlocked,
+      progress: tier.currentProgress
+    }));
+
+    const edges: Array<{ from: string; to: string; type: 'dependency' | 'progression' }> = [];
+    
+    categoryData.tiers.forEach(tier => {
+      tier.dependencySkills.forEach(depSkill => {
+        edges.push({
+          from: depSkill,
+          to: tier.skillName,
+          type: 'dependency'
+        });
+      });
+    });
+
+    return { nodes, edges };
   }
 }
 

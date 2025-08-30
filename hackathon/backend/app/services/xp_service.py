@@ -57,7 +57,8 @@ class XPService:
     @staticmethod
     def get_or_create_user_xp(user_id: int) -> UserXP:
         """사용자 크레도 데이터 가져오기 또는 생성"""
-        with get_session() as session:
+        session = next(get_session())
+        try:
             user_xp = session.exec(
                 select(UserXP).where(UserXP.user_id == user_id)
             ).first()
@@ -77,6 +78,8 @@ class XPService:
                 session.refresh(user_xp)
             
             return user_xp
+        finally:
+            session.close()
 
     @staticmethod
     def get_user_progress(user_id: int) -> UserProgress:
@@ -120,7 +123,8 @@ class XPService:
         )
         
         # 데이터베이스 업데이트
-        with get_session() as session:
+        session = next(get_session())
+        try:
             # UserXP 업데이트
             user_xp.current_level = new_level
             user_xp.current_xp += xp_gained
@@ -138,6 +142,8 @@ class XPService:
             
             session.commit()
             session.refresh(user_xp)
+        finally:
+            session.close()
         
         # 진행률 계산
         progress = (new_credo / credo_to_next * 100) if credo_to_next > 0 else 100

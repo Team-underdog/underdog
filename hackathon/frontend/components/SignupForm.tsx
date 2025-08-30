@@ -324,7 +324,26 @@ export function SignupForm({ onSwitchToLogin }: SignupFormProps) {
         }
       }
     } catch (error: any) {
-      console.error('❌ SSAFY API 호출 실패:', error);
+      // 에러 객체의 구조를 파악하여 적절한 로깅
+      if (error instanceof Error) {
+        console.error('❌ SSAFY API 호출 실패:', {
+          message: error.message,
+          name: error.name,
+          stack: error.stack
+        });
+      } else if (typeof error === 'object' && error !== null) {
+        console.error('❌ SSAFY API 호출 실패 (객체):', {
+          error: error,
+          errorType: typeof error,
+          errorKeys: Object.keys(error),
+          errorString: JSON.stringify(error, null, 2)
+        });
+      } else {
+        console.error('❌ SSAFY API 호출 실패 (기타):', {
+          error: error,
+          errorType: typeof error
+        });
+      }
       
       // 에러 타입별 메시지 처리
       let errorMessage = '학생 정보 확인 중 오류가 발생했습니다.';

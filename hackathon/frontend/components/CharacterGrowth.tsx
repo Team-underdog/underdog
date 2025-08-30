@@ -8,12 +8,17 @@ import {
   Dimensions,
   Image,
   PanResponder,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 import { Feather } from '@expo/vector-icons';
 import CharacterSelectionModal from './CharacterSelectionModal';
+import CredoService from '../services/credoService';
+import BenefitModal from './BenefitModal';
+import { BenefitService } from '../services/benefitService';
+import { HollandType } from '../services/nlpService';
 
 interface CharacterGrowthProps {
   userId: string;
@@ -54,10 +59,10 @@ class SoundManager {
     }
   }
 
-  async playXPSound() {
+  async playCredoSound() {
     try {
-      // XP 획득 사운드
-      console.log('🎵 XP 획득 사운드 재생!');
+      // 크레도 획득 사운드
+      console.log('🎵 크레도 획득 사운드 재생!');
     } catch (error) {
       console.error('사운드 재생 실패:', error);
     }
@@ -75,8 +80,11 @@ class SoundManager {
 
 export default function CharacterGrowth({ userId, onSettingsPress }: CharacterGrowthProps) {
   const [currentLevel, setCurrentLevel] = useState(1);
-  const [currentXP, setCurrentXP] = useState(0);
+  const [currentCredo, setCurrentCredo] = useState(0);
   const [currentCharacter, setCurrentCharacter] = useState('pixel');
+  
+  // 중앙 크레도 서비스
+  const credoService = useRef(CredoService.getInstance()).current;
   const [modalVisible, setModalVisible] = useState(false);
   const [showLevelUp, setShowLevelUp] = useState(false);
   const [newLevel, setNewLevel] = useState(1);
@@ -84,6 +92,15 @@ export default function CharacterGrowth({ userId, onSettingsPress }: CharacterGr
   const [isHovered, setIsHovered] = useState(false);
   const [isEvolving, setIsEvolving] = useState(false);
   const [showSparkle, setShowSparkle] = useState(false);
+  
+  // 혜택 확인 관련 상태
+  const [showBenefitModal, setShowBenefitModal] = useState(false);
+  const [benefits, setBenefits] = useState<any>(null);
+  
+  // 크레도 동기화 상태
+  const [credoToNextLevel, setCredoToNextLevel] = useState(100);
+  const [totalCredo, setTotalCredo] = useState(0);
+  const [credoProgress, setCredoProgress] = useState(0);
   
   // 사운드 매니저
   const soundManager = useRef(SoundManager.getInstance()).current;
@@ -94,6 +111,65 @@ export default function CharacterGrowth({ userId, onSettingsPress }: CharacterGr
   const progressAnim = useRef(new Animated.Value(0)).current;
   const rotationAnim = useRef(new Animated.Value(0)).current;
   const bounceAnim = useRef(new Animated.Value(1)).current;
+  
+  // 크레도 동기화 및 실시간 업데이트
+  useEffect(() => {
+    // 사용자 ID가 있으면 CredoService에 설정
+    if (userId) {
+      credoService.setUserId(userId);
+    }
+    
+    // 초기 크레도 데이터 로드
+    loadCredoData();
+    
+    // 크레도 변경 이벤트 리스너 등록
+    const handleCredoChange = (credoData: any) => {
+      updateCharacterFromCredo(credoData);
+    };
+    
+    credoService.on('credoChanged', handleCredoChange);
+    
+    // 컴포넌트 언마운트 시 이벤트 리스너 제거
+    return () => {
+      credoService.off('credoChanged', handleCredoChange);
+    };
+  }, [userId]); // userId가 변경될 때마다 실행
+  
+  // 크레도 데이터 로드 및 캐릭터 상태 업데이트
+  const loadCredoData = useCallback(() => {
+    try {
+      const credoStats = credoService.getCredoStats();
+      updateCharacterFromCredo(credoStats);
+    } catch (error) {
+      console.error('크레도 데이터 로드 실패:', error);
+    }
+  }, [credoService]);
+  
+  // 크레도 데이터로 캐릭터 상태 업데이트
+  const updateCharacterFromCredo = useCallback((credoStats: any) => {
+    const { currentCredo, totalCredo, level } = credoStats;
+    
+    setCurrentCredo(currentCredo);
+    setTotalCredo(totalCredo);
+    setCurrentLevel(level);
+    
+    // 다음 레벨까지 필요한 크레도 계산
+    const nextLevelCredo = credoService.getCredoForNextLevel();
+    setCredoToNextLevel(nextLevelCredo);
+    
+    // 크레도 진행률 계산 (0-100)
+    const progress = Math.min((currentCredo / nextLevelCredo) * 100, 100);
+    setCredoProgress(progress);
+    
+    // 진행률 애니메이션 업데이트
+    Animated.timing(progressAnim, {
+      toValue: progress / 100,
+      duration: 1000,
+      useNativeDriver: false,
+    }).start();
+    
+    console.log(`🎮 캐릭터 크레도 동기화: ${currentCredo}/${nextLevelCredo} (${progress.toFixed(1)}%)`);
+  }, [progressAnim, credoService]);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const sparkleAnim = useRef(new Animated.Value(0)).current;
   const colorAnim = useRef(new Animated.Value(0)).current;
@@ -199,10 +275,21 @@ export default function CharacterGrowth({ userId, onSettingsPress }: CharacterGr
   };
 
   const getProgressColor = () => {
-    if (currentXP >= currentLevel * 100) {
+    if (currentCredo >= credoToNextLevel) {
       return '#FFD700'; // 다음 레벨 도달 시 노란색
     }
-    return '#6BCF7F'; // 현재 레벨 XP 진행 시 초록색
+    
+    // 크레도 진행률에 따른 색상 변화
+    const progress = (currentCredo / credoToNextLevel) * 100;
+    if (progress >= 80) {
+      return '#FFA500'; // 80% 이상 시 주황색
+    } else if (progress >= 60) {
+      return '#FFD700'; // 60% 이상 시 노란색
+    } else if (progress >= 40) {
+      return '#87CEEB'; // 40% 이상 시 파란색
+    } else {
+      return '#6BCF7F'; // 40% 미만 시 초록색
+    }
   };
 
   // 레벨업 애니메이션
@@ -538,22 +625,41 @@ export default function CharacterGrowth({ userId, onSettingsPress }: CharacterGr
   //   };
   // }, []);
 
-  // XP 증가 시 레벨업 체크
+  // 레벨업 이벤트 리스너
+  const handleLevelUp = useCallback((data: any) => {
+    const newLevel = data.newLevel || data; // data가 숫자인 경우도 처리
+    setNewLevel(newLevel);
+    setShowLevelUp(true);
+    setIsEvolving(true);
+    setCurrentLevel(newLevel);
+    
+    // 레벨업 애니메이션
+    triggerLevelUp();
+    
+    // 진화 이펙트 시작
+    triggerEvolutionEffect();
+  }, []);
+
+  // 크레도 서비스에서 데이터 동기화
   useEffect(() => {
-    const xpForNextLevel = currentLevel * 100;
-    if (currentXP >= xpForNextLevel && currentLevel < 10) {
-      setNewLevel(currentLevel + 1);
-      setShowLevelUp(true);
-      setIsEvolving(true);
-      setCurrentLevel(prev => prev + 1);
-      
-      // 레벨업 애니메이션
-      triggerLevelUp();
-      
-      // 진화 이펙트 시작
-      triggerEvolutionEffect();
-    }
-  }, [currentXP, currentLevel]);
+    const credoStats = credoService.getCredoStats();
+    setCurrentCredo(credoStats.currentCredo);
+    setCurrentLevel(credoStats.level);
+    
+    // 크레도 변경 이벤트 리스너
+    const handleCredoChanged = (stats: any) => {
+      setCurrentCredo(stats.currentCredo);
+      setCurrentLevel(stats.level);
+    };
+    
+    credoService.on('credoChanged', handleCredoChanged);
+    credoService.on('levelUp', handleLevelUp);
+    
+    return () => {
+      credoService.off('credoChanged', handleCredoChanged);
+      credoService.off('levelUp', handleLevelUp);
+    };
+  }, [credoService, handleLevelUp]);
 
   // 캐릭터 이미지 경로 생성
   const getCharacterImage = () => {
@@ -632,19 +738,65 @@ export default function CharacterGrowth({ userId, onSettingsPress }: CharacterGr
   const handleCharacterSelect = (characterType: string, level: number) => {
     setCurrentCharacter(characterType);
     setCurrentLevel(level);
-    setCurrentXP(0); // 레벨 변경 시 XP 초기화
+    // 레벨 변경 시 크레도는 서비스에서 관리되므로 초기화하지 않음
   };
 
   // 캐릭터 터치 핸들러
-  const handleCharacterPress = () => {
+  const handleCharacterPress = async () => {
     // 햅틱 피드백
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     
-    // XP 추가 (테스트용)
-    setCurrentXP(prev => prev + 25);
+    // 중앙 크레도 서비스에 크레도 추가
+    try {
+      const earnedCredo = credoService.earnCredo(25, 'character_touch', '캐릭터 터치로 크레도 획득');
+      
+      // 크레도 획득 성공 시 이벤트 발생
+      if (earnedCredo) {
+        // 크레도 변경 이벤트는 credoService.earnCredo() 내부에서 자동으로 발생
+        // 레벨업 체크
+        const newCredoStats = credoService.getCredoStats();
+        if (newCredoStats.level > currentLevel) {
+          handleLevelUp(newCredoStats.level);
+        }
+        
+        console.log(`🎉 캐릭터 터치로 크레도 획득: +25`);
+      }
+    } catch (error) {
+      console.error('크레도 획득 실패:', error);
+      // 실패 시에도 기본 크레도 증가 (오프라인 모드)
+      setCurrentCredo(prev => prev + 25);
+    }
     
-    // XP 획득 사운드
-    soundManager.playXPSound();
+    // 크레도 획득 사운드
+    soundManager.playCredoSound();
+  };
+
+  // 혜택확인 버튼 핸들러
+  const handleBenefitCheck = () => {
+    console.log('🎁 혜택확인 버튼 클릭됨');
+    
+    try {
+      // 홀랜드 점수 (임시 데이터 - 실제로는 사용자의 홀랜드 검사 결과를 사용)
+      const mockHollandScores = {
+        [HollandType.R]: 75, // 현실형
+        [HollandType.I]: 85, // 탐구형
+        [HollandType.A]: 60, // 예술형
+        [HollandType.S]: 90, // 사회형
+        [HollandType.E]: 70, // 진취형
+        [HollandType.C]: 65  // 관습형
+      };
+      
+      // 혜택 계산
+      const benefitService = BenefitService.getInstance();
+      const calculatedBenefits = benefitService.calculateBenefits(currentCredo, mockHollandScores);
+      
+      setBenefits(calculatedBenefits);
+      setShowBenefitModal(true);
+      
+    } catch (error) {
+      console.error('혜택 계산 실패:', error);
+      Alert.alert('오류', '혜택 정보를 불러오는데 실패했습니다.');
+    }
   };
 
   const handlePressIn = () => {
@@ -1002,22 +1154,25 @@ export default function CharacterGrowth({ userId, onSettingsPress }: CharacterGr
           </View>
         </View>
 
-        {/* XP 진행률 섹션 */}
+        {/* 크레도 진행률 섹션 */}
         <View style={styles.xpSection}>
           <View style={styles.xpHeader}>
-            <Text style={styles.xpTitle}>경험치</Text>
+            <Text style={styles.xpTitle}>크레도</Text>
             <Text style={styles.xpValue}>
-              {currentXP} / {currentLevel * 100}
+              {currentCredo} / {credoToNextLevel}
             </Text>
           </View>
           
-          {/* XP 진행률 바 */}
+          {/* 크레도 진행률 바 */}
           <View style={styles.progressBarContainer}>
             <Animated.View
               style={[
                 styles.progressBar,
                 {
-                  width: `${(currentXP / (currentLevel * 100)) * 100}%`,
+                  width: progressAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: ['0%', '100%']
+                  }),
                   backgroundColor: getProgressColor(),
                 },
               ]}
@@ -1025,12 +1180,14 @@ export default function CharacterGrowth({ userId, onSettingsPress }: CharacterGr
           </View>
           
           <Text style={styles.progressText}>
-            다음 레벨까지 {currentLevel * 100 - currentXP} XP 필요
+            다음 레벨까지 {credoToNextLevel - currentCredo} 크레도 필요
           </Text>
         </View>
 
-        {/* 터치 힌트 */}
-        <Text style={styles.touchHint}>캐릭터를 터치하면 XP를 획득할 수 있어요!</Text>
+        {/* 혜택확인 버튼 */}
+        <TouchableOpacity style={styles.benefitButton} onPress={handleBenefitCheck}>
+          <Text style={styles.benefitButtonText}>혜택확인</Text>
+        </TouchableOpacity>
       </Animated.View>
 
       {/* 캐릭터 선택 모달 */}
@@ -1041,6 +1198,15 @@ export default function CharacterGrowth({ userId, onSettingsPress }: CharacterGr
         currentCharacter={currentCharacter}
         currentLevel={currentLevel}
       />
+
+      {/* 혜택 확인 모달 */}
+      {benefits && (
+        <BenefitModal
+          visible={showBenefitModal}
+          onClose={() => setShowBenefitModal(false)}
+          benefits={benefits}
+        />
+      )}
     </>
   );
 }
@@ -1186,11 +1352,23 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     fontWeight: '500',
   },
-  touchHint: {
-    fontSize: 14,
-    color: '#9CA3AF',
+  benefitButton: {
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 25,
+    marginTop: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  benefitButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
     textAlign: 'center',
-    fontStyle: 'italic',
   },
   evolutionOverlay: {
     ...StyleSheet.absoluteFillObject,

@@ -29,13 +29,36 @@ export interface Quest {
   deadline?: string;
   trackingType: 'transaction_count' | 'amount_threshold' | 'balance_target' | 'savings_goal' | 'spending_limit';
   trackingParams: Record<string, any>;
+  status: 'available' | 'inProgress' | 'completed'; // 상태 필드 추가
 }
 
 class QuestService {
+  private userId: string | null = null;
+
+  // 사용자 ID 설정
+  setUserId(userId: string): void {
+    this.userId = userId;
+    console.log(`🎯 QuestService 사용자 ID 설정: ${userId}`);
+  }
+
+  // 사용자 ID 가져오기
+  getUserId(): string | null {
+    return this.userId;
+  }
+
   /**
    * 사용자 금융 데이터를 기반으로 개인화된 퀘스트 생성
    */
-  generatePersonalizedQuests(financialData: FinancialSummary, userTransactions: Transaction[]): Quest[] {
+  generatePersonalizedQuests(financialData: FinancialSummary, userTransactions: Transaction[], userId?: string): Quest[] {
+    // 사용자 ID 설정
+    if (userId) {
+      this.setUserId(userId);
+    }
+
+    if (!this.userId) {
+      console.warn('⚠️ 사용자 ID가 설정되지 않음, 기본 퀘스트 생성');
+    }
+
     const quests: Quest[] = [];
     
     // 1. 저축 관련 퀘스트
@@ -60,6 +83,7 @@ class QuestService {
       },
       isCompleted: currentBalance >= savingsTarget,
       isActive: !!(currentBalance < savingsTarget),
+      status: currentBalance >= savingsTarget ? 'completed' : 'inProgress',
       trackingType: 'balance_target',
       trackingParams: { target: savingsTarget }
     });
@@ -86,6 +110,7 @@ class QuestService {
         },
         isCompleted: financialData.monthly_spending <= spendingLimit,
         isActive: !!(financialData.monthly_spending > spendingLimit),
+        status: financialData.monthly_spending <= spendingLimit ? 'completed' : 'inProgress',
         trackingType: 'spending_limit',
         trackingParams: { limit: spendingLimit }
       });
@@ -113,6 +138,7 @@ class QuestService {
       },
       isCompleted: recentTransactionCount >= transactionTarget,
       isActive: !!(recentTransactionCount < transactionTarget),
+      status: recentTransactionCount >= transactionTarget ? 'completed' : 'inProgress',
       trackingType: 'transaction_count',
       trackingParams: { target: transactionTarget, period: 30 }
     });
@@ -140,6 +166,7 @@ class QuestService {
         },
         isCompleted: savingsAccount.balance >= maturityAmount,
         isActive: !!(savingsAccount.balance < maturityAmount),
+        status: savingsAccount.balance >= maturityAmount ? 'completed' : 'inProgress',
         trackingType: 'savings_goal',
         trackingParams: { 
           accountNo: savingsAccount.account_number,
@@ -167,6 +194,7 @@ class QuestService {
       },
       isCompleted: true, // 현재 유지 중
       isActive: true,
+      status: 'completed',
       trackingType: 'amount_threshold',
       trackingParams: { 
         minCreditScore: financialData.credit_score - 50 // 50점 이하로 떨어지면 실패
@@ -192,6 +220,7 @@ class QuestService {
       },
       isCompleted: false,
       isActive: true,
+      status: 'available',
       trackingType: 'transaction_count', // 임시
       trackingParams: { target: 5 }
     });
@@ -214,6 +243,7 @@ class QuestService {
             percentage: Math.min((financialData.total_balance / quest.trackingParams.target) * 100, 100)
           };
           updatedQuest.isCompleted = financialData.total_balance >= quest.trackingParams.target;
+          updatedQuest.status = updatedQuest.isCompleted ? 'completed' : 'inProgress';
           break;
 
         case 'spending_limit':
@@ -223,6 +253,7 @@ class QuestService {
             percentage: Math.min((financialData.monthly_spending / quest.trackingParams.limit) * 100, 100)
           };
           updatedQuest.isCompleted = financialData.monthly_spending <= quest.trackingParams.limit;
+          updatedQuest.status = updatedQuest.isCompleted ? 'completed' : 'inProgress';
           break;
 
         case 'transaction_count':
@@ -233,6 +264,7 @@ class QuestService {
             percentage: Math.min((transactionCount / quest.trackingParams.target) * 100, 100)
           };
           updatedQuest.isCompleted = transactionCount >= quest.trackingParams.target;
+          updatedQuest.status = updatedQuest.isCompleted ? 'completed' : 'inProgress';
           break;
 
         case 'savings_goal':
@@ -246,6 +278,7 @@ class QuestService {
               percentage: Math.min((savingsAccount.balance / quest.trackingParams.target) * 100, 100)
             };
             updatedQuest.isCompleted = savingsAccount.balance >= quest.trackingParams.target;
+            updatedQuest.status = updatedQuest.isCompleted ? 'completed' : 'inProgress';
           }
           break;
 
@@ -254,6 +287,7 @@ class QuestService {
           if (quest.trackingParams.minCreditScore) {
             updatedQuest.isCompleted = financialData.credit_score >= quest.trackingParams.minCreditScore;
             updatedQuest.progress.percentage = updatedQuest.isCompleted ? 100 : 50;
+            updatedQuest.status = updatedQuest.isCompleted ? 'completed' : 'inProgress';
           }
           break;
       }
@@ -314,6 +348,7 @@ class QuestService {
         },
         isCompleted: false,
         isActive: false, // 제안 상태
+        status: 'available',
         trackingType: 'spending_limit',
         trackingParams: { 
           category: 'cafe',
@@ -347,6 +382,7 @@ class QuestService {
         },
         isCompleted: false,
         isActive: false,
+        status: 'available',
         trackingType: 'transaction_count',
         trackingParams: { 
           target: 4,

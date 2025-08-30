@@ -2,10 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 from typing import List, Optional
 import json
+import logging
 from ..db.session import get_session
 from ..models.chronicle import ChroniclePost
 from ..models.user import User
 from ..api.auth_v2 import get_current_user
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -100,13 +103,17 @@ async def create_chronicle_post(
 ):
     """새로운 크로니클 포스트 생성"""
     try:
+        # JSON 데이터를 문자열로 변환
+        rewards = json.dumps(post_data.get("rewards", {})) if post_data.get("rewards") else "{}"
+        user_content = json.dumps(post_data.get("user_content", {})) if post_data.get("user_content") else "{}"
+        
         new_post = ChroniclePost(
             user_id=current_user.id,
             type=post_data.get("type", "user_post"),
             title=post_data.get("title", ""),
             description=post_data.get("description"),
-            rewards=post_data.get("rewards", {}),
-            user_content=post_data.get("user_content", {})
+            rewards=rewards,  # JSON 문자열로 저장
+            user_content=user_content  # JSON 문자열로 저장
         )
         
         db.add(new_post)
@@ -119,6 +126,7 @@ async def create_chronicle_post(
         }
     except Exception as e:
         db.rollback()
+        logger.error(f"크로니클 포스트 생성 실패: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"크로니클 포스트 생성 실패: {str(e)}"

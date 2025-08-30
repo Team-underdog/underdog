@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini API 직접 테스트</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .input-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        textarea {
+            height: 120px;
+            resize: vertical;
+        }
+        button {
+            background: linear-gradient(45deg, #FF6B6B, #FF8E53);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 10px 5px;
+            transition: transform 0.2s;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .result {
+            margin-top: 30px;
+            padding: 20px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-left: 4px solid #00ff88;
+        }
+        .error {
+            border-left-color: #ff4757;
+            background: rgba(255, 71, 87, 0.1);
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            font-style: italic;
+        }
+        .api-key-info {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        .endpoint-info {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        .success {
+            color: #00ff88;
+            font-weight: bold;
+        }
+        .error-text {
+            color: #ff4757;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Gemini API 직접 테스트</h1>
+        
+        <div class="api-key-info">
+            <strong>🔑 API 키:</strong> <span id="apiKeyDisplay">설정됨</span>
+            <br>
+            <strong>📍 엔드포인트:</strong> <span id="endpointDisplay">gemini-2.0-flash</span>
+        </div>
+
+        <div class="endpoint-info">
+            <strong>🌐 사용 가능한 모델:</strong>
+            <ul>
+                <li>gemini-2.0-flash (최신, 권장)</li>
+                <li>gemini-2.0-flash-exp (실험적)</li>
+                <li>gemini-1.5-flash (안정적)</li>
+                <li>gemini-1.5-pro (고성능)</li>
+            </ul>
+        </div>
+
+        <div class="input-group">
+            <label for="apiKeyInput">🔑 Gemini API 키:</label>
+            <input type="password" id="apiKeyInput" placeholder="AIzaSy...로 시작하는 API 키를 입력하세요">
+        </div>
+
+        <div class="input-group">
+            <label for="modelSelect">🤖 모델 선택:</label>
+            <select id="modelSelect" style="width: 100%; padding: 12px; border-radius: 8px; background: rgba(255, 255, 255, 0.9); color: #333; font-size: 16px;">
+                <option value="gemini-2.0-flash">gemini-2.0-flash (최신, 권장)</option>
+                <option value="gemini-2.0-flash-exp">gemini-2.0-flash-exp (실험적)</option>
+                <option value="gemini-1.5-flash">gemini-1.5-flash (안정적)</option>
+                <option value="gemini-1.5-pro">gemini-1.5-pro (고성능)</option>
+            </select>
+        </div>
+
+        <div class="input-group">
+            <label for="promptInput">📝 프롬프트:</label>
+            <textarea id="promptInput" placeholder="AI에게 물어보고 싶은 내용을 입력하세요...">안녕하세요! 간단히 'Hello World'라고 한국어로 답변해주세요.</textarea>
+        </div>
+
+        <div style="text-align: center;">
+            <button onclick="testConnection()">🔌 연결 테스트</button>
+            <button onclick="sendPrompt()">📤 프롬프트 전송</button>
+            <button onclick="clearResult()">🗑️ 결과 초기화</button>
+        </div>
+
+        <div id="result"></div>
+    </div>
+
+    <script>
+        const GEMINI_API_KEY = 'AIzaSyDFKAfEDMhqiGcJuOz5jjuEAUGg3Yvn46k';
+        
+        // 페이지 로드 시 API 키 설정
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('apiKeyInput').value = GEMINI_API_KEY;
+            updateDisplay();
+        });
+
+        function updateDisplay() {
+            const apiKey = document.getElementById('apiKeyInput').value;
+            const model = document.getElementById('modelSelect').value;
+            
+            document.getElementById('apiKeyDisplay').textContent = 
+                apiKey ? `${apiKey.substring(0, 10)}...` : '설정되지 않음';
+            document.getElementById('endpointDisplay').textContent = model;
+        }
+
+        async function callGeminiAPI(prompt, model) {
+            const apiKey = document.getElementById('apiKeyInput').value;
+            if (!apiKey) {
+                throw new Error('API 키를 입력해주세요.');
+            }
+
+            const baseUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+            const fullUrl = `${baseUrl}?key=${apiKey}`;
+
+            console.log(`🔄 Gemini API 호출 시도: ${baseUrl}`);
+            console.log('📍 전체 URL:', fullUrl);
+
+            const requestBody = {
+                contents: [{
+                    parts: [{
+                        text: prompt
+                    }]
+                }],
+                generationConfig: {
+                    temperature: 0.7,
+                    topK: 40,
+                    topP: 0.95,
+                    maxOutputTokens: 1024,
+                },
+                safetySettings: [
+                    {
+                        category: "HARM_CATEGORY_HARASSMENT",
+                        threshold: "BLOCK_MEDIUM_AND_ABOVE"
+                    },
+                    {
+                        category: "HARM_CATEGORY_HATE_SPEECH",
+                        threshold: "BLOCK_MEDIUM_AND_ABOVE"
+                    },
+                    {
+                        category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                        threshold: "BLOCK_MEDIUM_AND_ABOVE"
+                    },
+                    {
+                        category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+                        threshold: "BLOCK_MEDIUM_AND_ABOVE"
+                    }
+                ]
+            };
+
+            const response = await fetch(fullUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-goog-api-key': apiKey
+                },
+                body: JSON.stringify(requestBody)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`HTTP ${response.status}: ${errorText}`);
+            }
+
+            const data = await response.json();
+            
+            if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+                return data.candidates[0].content.parts[0].text;
+            } else {
+                throw new Error('API 응답에서 답변을 찾을 수 없습니다.');
+            }
+        }
+
+        async function testConnection() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<div class="loading">🔌 연결 테스트 중...</div>';
+            
+            try {
+                updateDisplay();
+                const response = await callGeminiAPI('Hello', document.getElementById('modelSelect').value);
+                
+                resultDiv.innerHTML = `
+                    <div class="result">
+                        <h3>✅ 연결 성공!</h3>
+                        <p><strong>모델:</strong> ${document.getElementById('modelSelect').value}</p>
+                        <p><strong>응답:</strong> ${response}</p>
+                        <p><strong>시간:</strong> ${new Date().toLocaleTimeString()}</p>
+                    </div>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="result error">
+                        <h3>❌ 연결 실패</h3>
+                        <p><strong>오류:</strong> ${error.message}</p>
+                        <p><strong>시간:</strong> ${new Date().toLocaleTimeString()}</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function sendPrompt() {
+            const resultDiv = document.getElementById('result');
+            const prompt = document.getElementById('promptInput').value;
+            
+            if (!prompt.trim()) {
+                resultDiv.innerHTML = '<div class="result error"><h3>⚠️ 경고</h3><p>프롬프트를 입력해주세요.</p></div>';
+                return;
+            }
+
+            resultDiv.innerHTML = '<div class="loading">🤖 AI 응답 생성 중...</div>';
+            
+            try {
+                updateDisplay();
+                const response = await callGeminiAPI(prompt, document.getElementById('modelSelect').value);
+                
+                resultDiv.innerHTML = `
+                    <div class="result">
+                        <h3>✅ AI 응답 성공!</h3>
+                        <p><strong>모델:</strong> ${document.getElementById('modelSelect').value}</p>
+                        <p><strong>프롬프트:</strong> ${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}</p>
+                        <p><strong>응답:</strong></p>
+                        <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; margin-top: 10px; white-space: pre-wrap;">${response}</div>
+                        <p><strong>시간:</strong> ${new Date().toLocaleTimeString()}</p>
+                    </div>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="result error">
+                        <h3>❌ AI 응답 실패</h3>
+                        <p><strong>오류:</strong> ${error.message}</p>
+                        <p><strong>시간:</strong> ${new Date().toLocaleTimeString()}</p>
+                    </div>
+                `;
+            }
+        }
+
+        function clearResult() {
+            document.getElementById('result').innerHTML = '';
+        }
+
+        // 모델 변경 시 디스플레이 업데이트
+        document.getElementById('modelSelect').addEventListener('change', updateDisplay);
+        document.getElementById('apiKeyInput').addEventListener('input', updateDisplay);
+    </script>
+</body>
+</html>

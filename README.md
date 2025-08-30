@@ -7,7 +7,7 @@
 
 #### **🚀 QR 코드로 바로 시작!**
 ![Expo Go QR Code](hackathon/frontend/입장큐알.png)
-
+주의사항: BlueCampus 와이파이에 접속해있어야함
 **위 QR 코드를 스캔하여 즉시 앱을 실행하세요!**
 
 #### **📱 Expo Go 설치 방법**

@@ -4,7 +4,7 @@
 ## 🚀 **Underdog Hackathon Project - v3.0.1**
 
 ### 📱 **즉시 실행하기 (1분)**
-
+주의사항! BlusCampus 와이파이에 접속해있을것!!!
 #### **🚀 QR 코드로 바로 시작!**
 ![Expo Go QR Code](hackathon/frontend/입장큐알.png)
 

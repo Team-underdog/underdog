@@ -39,13 +39,12 @@ export default function CampusCredoHome() {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [financialData, setFinancialData] = useState<FinancialSummary | null>(null);
-  const [credoScore, setCredoScore] = useState(850);
+
   const [xpData, setXpData] = useState<XPData>({
     currentXP: 0,
     currentLevel: 1,
     nextLevelXP: 100,
-    totalXP: 0,
-    credoScore: 0
+    totalXP: 0
   });
   const [showCharacterSelection, setShowCharacterSelection] = useState(false);
 
@@ -113,13 +112,7 @@ export default function CampusCredoHome() {
       const summary = await financialService.getUserFinancialSummary(userKey);
       setFinancialData(summary);
       
-      // 금융 데이터를 기반으로 크레도 점수 계산
-      const transactions = summary?.recent_transactions || [];
-      const calculatedScore = financialService.calculateCredoScore(transactions);
-      setCredoScore(calculatedScore);
-      
       console.log('✅ 금융 데이터 로딩 완료:', summary);
-      console.log('🎯 계산된 크레도 점수:', calculatedScore);
     } catch (error) {
       console.error('❌ 금융 데이터 로딩 실패:', error);
       // 에러 시 기본값 유지
@@ -137,10 +130,8 @@ export default function CampusCredoHome() {
             currentXP: credoData.currentXP,
             currentLevel: credoData.currentLevel,
             nextLevelXP: credoData.nextLevelCredoRequired,
-            totalXP: credoData.totalXP,
-            credoScore: credoData.currentCredo
+            totalXP: credoData.totalXP
           });
-          setCredoScore(credoData.currentCredo);
           console.log('✅ XP 데이터 로딩 완료:', credoData);
         }
       }
@@ -165,6 +156,38 @@ export default function CampusCredoHome() {
     }
   };
 
+  // 이름을 성이름 순으로 변환하는 함수
+  const formatDisplayName = (displayName: string | null | undefined): string => {
+    if (!displayName) return '언더독';
+    
+    // 공백으로 분리하여 성과 이름 구분
+    const nameParts = displayName.trim().split(/\s+/);
+    if (nameParts.length >= 2) {
+      // "이름 성" → "성 이름" 순서로 변경
+      const firstName = nameParts[0];
+      const lastName = nameParts.slice(1).join(' ');
+      return `${lastName} ${firstName}`;
+    }
+    
+    // 공백이 없거나 한 글자인 경우 그대로 반환
+    return displayName;
+  };
+
+  const renderHeader = () => (
+    <Animated.View entering={FadeInUp.delay(100)} style={styles.header}>
+      <View style={styles.headerLeft}>
+        <Text style={styles.greeting}>
+          안녕하세요, {formatDisplayName(userData?.display_name)}님!
+        </Text>
+        <Text style={styles.subGreeting}>오늘도 성장하는 하루 되세요</Text>
+      </View>
+
+      <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
+        <Feather name="log-out" size={20} color="#6B7280" />
+      </TouchableOpacity>
+    </Animated.View>
+  );
+
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -180,21 +203,7 @@ export default function CampusCredoHome() {
       <View style={styles.content}>
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
           {/* 헤더 */}
-          <Animated.View entering={FadeInUp.delay(100)} style={styles.header}>
-            <View style={styles.headerLeft}>
-              <Text style={styles.greeting}>
-                안녕하세요, {userData?.display_name || '캠퍼스 크로니클러'}님!
-              </Text>
-              <Text style={styles.subGreeting}>오늘도 성장하는 하루 되세요</Text>
-            </View>
-            <View style={styles.credoScore}>
-              <Feather name="zap" size={16} color="white" />
-              <Text style={styles.credoText}>{credoScore.toLocaleString()}</Text>
-            </View>
-            <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-              <Feather name="log-out" size={20} color="#6B7280" />
-            </TouchableOpacity>
-          </Animated.View>
+          {renderHeader()}
 
           {/* 상단 위젯들 - 좌우 분할 레이아웃 */}
           <View style={styles.topRowContainer}>
@@ -427,8 +436,17 @@ export default function CampusCredoHome() {
         currentLevel={xpData.currentLevel}
       />
 
-      {/* 하단 네비게이션 */}
-      <CampusCredoBottomNav />
+              {/* 테스트 버튼 */}
+        <TouchableOpacity 
+          style={styles.testButton}
+          onPress={() => router.push('/test-dashboard')}
+        >
+          <Feather name="settings" size={20} color="white" />
+          <Text style={styles.testButtonText}>🧪 테스트 대시보드</Text>
+        </TouchableOpacity>
+
+        {/* 하단 네비게이션 */}
+        <CampusCredoBottomNav />
     </SafeAreaView>
   );
 }
@@ -471,20 +489,7 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 2,
   },
-  credoScore: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F59E0B',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 12,
-  },
-  credoText: {
-    color: 'white',
-    fontWeight: 'bold',
-    marginLeft: 4,
-  },
+
   logoutButton: {
     padding: 8,
   },
@@ -585,27 +590,7 @@ const styles = StyleSheet.create({
   credoContent: {
     gap: 16,
   },
-  credoScoreDisplay: {
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#FEF3C7',
-    borderRadius: 12,
-  },
-  credoScoreLabel: {
-    fontSize: 12,
-    color: '#92400E',
-    marginBottom: 4,
-  },
-  credoScoreValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#92400E',
-  },
-  credoScoreUnit: {
-    fontSize: 12,
-    color: '#92400E',
-    marginTop: 2,
-  },
+
   credoInfo: {
     gap: 12,
   },
@@ -1216,5 +1201,26 @@ const styles = StyleSheet.create({
   },
   pageDotActive: {
     backgroundColor: '#3B82F6',
+  },
+  testButton: {
+    position: 'absolute',
+    bottom: 160,
+    right: 20,
+    backgroundColor: '#10b981',
+    padding: 15,
+    borderRadius: 30,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  testButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

@@ -193,6 +193,23 @@ export default function CampusCredoHome() {
     }
   };
 
+  // 이름을 성이름 순으로 변환하는 함수
+  const formatDisplayName = (displayName: string | null | undefined): string => {
+    if (!displayName) return '언더독';
+    
+    // 공백으로 분리하여 성과 이름 구분
+    const nameParts = displayName.trim().split(/\s+/);
+    if (nameParts.length >= 2) {
+      // "이름 성" → "성 이름" 순서로 변경
+      const firstName = nameParts[0];
+      const lastName = nameParts.slice(1).join(' ');
+      return `${lastName} ${firstName}`;
+    }
+    
+    // 공백이 없거나 한 글자인 경우 그대로 반환
+    return displayName;
+  };
+
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -210,14 +227,11 @@ export default function CampusCredoHome() {
         <Animated.View entering={FadeInUp.delay(100)} style={styles.header}>
           <View style={styles.headerLeft}>
             <Text style={styles.greeting}>
-              안녕하세요, {userData?.display_name || '캠퍼스 크로니클러'}님!
+              안녕하세요, {formatDisplayName(userData?.display_name)}님!
             </Text>
             <Text style={styles.subGreeting}>오늘도 성장하는 하루 되세요</Text>
           </View>
-          <View style={styles.credoScore}>
-            <Feather name="zap" size={16} color="white" />
-            <Text style={styles.credoText}>{mockUserStats.credoScore.toLocaleString()}</Text>
-          </View>
+
           <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
             <Feather name="log-out" size={20} color="#6B7280" />
           </TouchableOpacity>
@@ -253,7 +267,6 @@ export default function CampusCredoHome() {
                   <Text style={styles.activityTime}>{activity.time}</Text>
                 </View>
                 <View style={styles.activityReward}>
-                  <Feather name="zap" size={12} color="#F59E0B" />
                   <Text style={styles.activityCredo}>+{activity.credo}</Text>
                 </View>
               </View>
@@ -317,7 +330,6 @@ export default function CampusCredoHome() {
                 
                 <View style={styles.questRewards}>
                   <View style={styles.rewardItem}>
-                    <Feather name="zap" size={12} color="#F59E0B" />
                     <Text style={styles.rewardText}>+{quest.reward.credo} Credo</Text>
                   </View>
                   <View style={styles.rewardItem}>
@@ -377,20 +389,7 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 2,
   },
-  credoScore: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F59E0B',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 12,
-  },
-  credoText: {
-    color: 'white',
-    fontWeight: 'bold',
-    marginLeft: 4,
-  },
+
   logoutButton: {
     padding: 8,
   },

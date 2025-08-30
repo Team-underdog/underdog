@@ -19,13 +19,30 @@ export interface LoginResponse {
 
 // SSAFY API 연동을 위한 인터페이스
 export interface SSAFYStudentInfo {
-  is_valid_student: boolean;
+  is_valid?: boolean;
+  is_valid_student?: boolean;
   student_name?: string;
   university?: string;
   student_id?: string;
   department?: string;
   grade?: number;
   message?: string;
+  // 백엔드에서 반환하는 실제 데이터 구조
+  data?: {
+    is_valid?: boolean;
+    student_info?: {
+      userId?: string;
+      userName?: string;
+      userKey?: string;
+      institutionCode?: string;
+    };
+    email?: string;
+  };
+  // 직접 필드로도 접근 가능
+  userKey?: string;
+  userId?: string;
+  userName?: string;
+  institutionCode?: string;
 }
 
 export interface SSAFYAccountCreation {
@@ -92,15 +109,63 @@ export const verifySSAFYEmail = async (email: string): Promise<SSAFYStudentInfo>
 
     if (!response.ok) {
       const errorData = await response.json();
+      console.error('❌ SSAFY API 오류 응답:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorData: errorData
+      });
+      
+      // 백엔드에서 반환한 구조화된 에러 정보 처리
+      if (errorData.detail && typeof errorData.detail === 'object') {
+        const detail = errorData.detail;
+        if (detail.error && detail.error.error_message) {
+          throw new Error(detail.error.error_message);
+        } else if (detail.message) {
+          throw new Error(detail.message);
+        }
+      }
+      
       throw new Error(errorData.detail || 'SSAFY 학생 이메일 검증에 실패했습니다.');
     }
 
     const result: SSAFYStudentInfo = await response.json();
     console.log('✅ SSAFY 학생 이메일 검증 완료:', result);
     
+    // 백엔드 응답 구조에 맞춰 userKey 추출
+    let userKey: string | undefined;
+    if (result.data?.student_info?.userKey) {
+      userKey = result.data.student_info.userKey;
+    } else if (result.userKey) {
+      userKey = result.userKey;
+    }
+    
+    if (userKey) {
+      console.log('🔑 SSAFY userKey 추출 성공:', userKey);
+    }
+    
     return result;
   } catch (error: any) {
-    console.error('❌ SSAFY 학생 이메일 검증 실패:', error);
+    // 에러 객체의 구조를 파악하여 적절한 로깅
+    if (error instanceof Error) {
+      console.error('❌ SSAFY 학생 이메일 검증 실패:', {
+        message: error.message,
+        name: error.name,
+        stack: error.stack
+      });
+    } else if (typeof error === 'object' && error !== null) {
+      console.error('❌ SSAFY 학생 이메일 검증 실패 (객체):', {
+        error: error,
+        errorType: typeof error,
+        errorKeys: Object.keys(error),
+        errorString: JSON.stringify(error, null, 2)
+      });
+    } else {
+      console.error('❌ SSAFY 학생 이메일 검증 실패 (기타):', {
+        error: error,
+        errorType: typeof error
+      });
+    }
+    
     throw error;
   }
 };
@@ -125,6 +190,22 @@ export const createSSAFYAccount = async (email: string): Promise<SSAFYAccountCre
 
     if (!response.ok) {
       const errorData = await response.json();
+      console.error('❌ SSAFY API 계정 생성 오류 응답:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorData: errorData
+      });
+      
+      // 백엔드에서 반환한 구조화된 에러 정보 처리
+      if (errorData.detail && typeof errorData.detail === 'object') {
+        const detail = errorData.detail;
+        if (detail.error && detail.error.error_message) {
+          throw new Error(detail.error.error_message);
+        } else if (detail.message) {
+          throw new Error(detail.message);
+        }
+      }
+      
       throw new Error(errorData.detail || 'SSAFY 계정 생성에 실패했습니다.');
     }
 
@@ -133,7 +214,27 @@ export const createSSAFYAccount = async (email: string): Promise<SSAFYAccountCre
     
     return result;
   } catch (error: any) {
-    console.error('❌ SSAFY 계정 생성 실패:', error);
+    // 에러 객체의 구조를 파악하여 적절한 로깅
+    if (error instanceof Error) {
+      console.error('❌ SSAFY 계정 생성 실패:', {
+        message: error.message,
+        name: error.name,
+        stack: error.stack
+      });
+    } else if (typeof error === 'object' && error !== null) {
+      console.error('❌ SSAFY 계정 생성 실패 (객체):', {
+        error: error,
+        errorType: typeof error,
+        errorKeys: Object.keys(error),
+        errorString: JSON.stringify(error, null, 2)
+      });
+    } else {
+      console.error('❌ SSAFY 계정 생성 실패 (기타):', {
+        error: error,
+        errorType: typeof error
+      });
+    }
+    
     throw error;
   }
 };
@@ -152,10 +253,35 @@ export const signUpWithEmail = async (
   try {
     console.log('🏭 백엔드 API 회원가입 시작:', email);
     
-    // 1. SSAFY API에 계정 생성
-    const ssafyResult = await createSSAFYAccount(email);
-    if (!ssafyResult.success) {
-      throw new Error(ssafyResult.message || 'SSAFY 계정 생성에 실패했습니다.');
+    // 1. SSAFY API에 계정 생성 시도
+    let ssafyUserKey: string | null = null;
+    
+    try {
+      const ssafyResult = await createSSAFYAccount(email);
+      if (ssafyResult.success) {
+        ssafyUserKey = ssafyResult.user_key || ssafyResult.data?.userKey;
+        console.log('✅ SSAFY 계정 생성 성공, userKey:', ssafyUserKey);
+      }
+    } catch (ssafyError: any) {
+      // SSAFY 계정이 이미 존재하는 경우 (E4002) - 정상적인 상황
+      if (ssafyError.message && ssafyError.message.includes('E4002')) {
+        console.log('ℹ️ SSAFY 계정이 이미 존재합니다. 기존 계정 정보를 사용합니다.');
+        
+        // 기존 SSAFY 계정 정보 조회
+        try {
+          const verifyResult = await verifySSAFYEmail(email);
+          if (verifyResult && verifyResult.userKey) {
+            ssafyUserKey = verifyResult.userKey;
+            console.log('✅ 기존 SSAFY 계정 정보 조회 성공, userKey:', ssafyUserKey);
+          }
+        } catch (verifyError) {
+          console.warn('⚠️ 기존 SSAFY 계정 정보 조회 실패:', verifyError);
+        }
+      } else {
+        // 다른 SSAFY 오류인 경우
+        console.error('❌ SSAFY 계정 생성 중 예상치 못한 오류:', ssafyError);
+        throw new Error(`SSAFY 계정 생성 실패: ${ssafyError.message}`);
+      }
     }
     
     // 2. 백엔드에 사용자 정보 저장
@@ -172,7 +298,7 @@ export const signUpWithEmail = async (
           university,
           department,
           grade_level: gradeLevel,
-          ssafy_user_key: ssafyResult.user_key, // SSAFY에서 발급받은 user_key 저장
+          ssafy_user_key: ssafyUserKey, // SSAFY에서 발급받은 user_key 저장
         }),
       })
     );
@@ -187,7 +313,27 @@ export const signUpWithEmail = async (
     
     return result.user;
   } catch (error: any) {
-    console.error('❌ 백엔드 API 회원가입 실패:', error);
+    // 에러 객체의 구조를 파악하여 적절한 로깅
+    if (error instanceof Error) {
+      console.error('❌ 백엔드 API 회원가입 실패:', {
+        message: error.message,
+        name: error.name,
+        stack: error.stack
+      });
+    } else if (typeof error === 'object' && error !== null) {
+      console.error('❌ 백엔드 API 회원가입 실패 (객체):', {
+        error: error,
+        errorType: typeof error,
+        errorKeys: Object.keys(error),
+        errorString: JSON.stringify(error, null, 2)
+      });
+    } else {
+      console.error('❌ 백엔드 API 회원가입 실패 (기타):', {
+        error: error,
+        errorType: typeof error
+      });
+    }
+    
     throw error;
   }
 };

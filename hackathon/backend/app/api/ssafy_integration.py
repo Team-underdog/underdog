@@ -1,482 +1,714 @@
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
+"""
+SSAFY API 연동 API 엔드포인트
+모든 SSAFY API 기능을 REST API로 제공
+"""
+
+from fastapi import APIRouter, HTTPException, Depends, Query, Body
 from typing import Dict, Any, List, Optional
-import os
-import requests
-import json
-from datetime import datetime
-from sqlmodel import Session, select
-from ..core.config import settings
-from ..db.session import get_session
-from ..services.user_service import SSAFYAPIService, UserService
-from ..models.user import User
+from datetime import datetime, timedelta
+import logging
 
-router = APIRouter()
+from ..services.ssafy_api_service import SSAFYAPIService
 
-class EmailVerificationRequest(BaseModel):
-    email: str
+logger = logging.getLogger(__name__)
 
-class EmailVerificationResponse(BaseModel):
-    is_valid_student: bool
-    student_name: str = None
-    university: str = None
-    student_id: str = None
-    message: str = None
+router = APIRouter(prefix="/ssafy", tags=["SSAFY API Integration"])
 
-class SSAFYAccountCreationRequest(BaseModel):
-    email: str
+# SSAFY API 서비스 인스턴스
+ssafy_service = SSAFYAPIService()
 
-class SSAFYAccountCreationResponse(BaseModel):
-    success: bool
-    user_key: str = None
-    message: str = None
+# ==================== 학생 인증 API ====================
 
-class SSAFYIntegrationStatusResponse(BaseModel):
-    is_connected: bool
-    user_id: Optional[str] = None
-    user_key: Optional[str] = None
-    user_name: Optional[str] = None
-    institution_code: Optional[str] = None
-    message: str
-
-@router.post("/verify-ssafy-email", response_model=EmailVerificationResponse)
-async def verify_ssafy_email(
-    request: EmailVerificationRequest,
-    db: Session = Depends(get_session)
-):
-    """
-    SSAFY API를 호출하여 이메일이 유효한 학생 이메일인지 확인 + 중복 검증 (MEMBER_02)
-    """
+@router.post("/verify-student")
+async def verify_ssafy_student(email: str = Body(..., embed=True)):
+    """SSAFY 학생 이메일 검증"""
     try:
-        print(f"🔍 SSAFY API 이메일 중복 확인 시작: {request.email}")
+        print(f"🔍 SSAFY API로 학생 이메일 검증 시작: {email}")
         
-        # 1. UserService를 통한 이메일 중복 확인 (백엔드 DB + SSAFY API)
-        user_service = UserService(db)
-        email_check = await user_service.check_email_availability(request.email)
+        result = ssafy_service.verify_ssafy_student(email)
         
-        # 2. 이미 등록된 이메일인 경우
-        if not email_check.is_available:
-            return EmailVerificationResponse(
-                is_valid_student=False,
-                message=f"이미 등록된 이메일입니다: {email_check.message}"
-            )
-        
-        # 3. SSAFY API MEMBER_02로 학생 정보 확인
-        ssafy_api_service = SSAFYAPIService()
-        ssafy_result = await ssafy_api_service.check_email_exists(request.email)
-        
-        if ssafy_result.get("exists"):
-            # SSAFY API에 이미 등록된 이메일
-            return EmailVerificationResponse(
-                is_valid_student=False,
-                message="이미 SSAFY API에 등록된 이메일입니다. (이미 가입된 이메일)"
-            )
-        
-        # 4. SSAFY API에 등록되지 않은 이메일 - 가입 가능
-        # 도메인 기반 기본 검증 (개발 환경용)
-        allowed_domains = [
-            "@ssafy.com", "@samsung.com", "@naver.com", "@gmail.com", 
-            "@test.com", "@example.com", "@student.ac.kr", "@ac.kr"
-        ]
-        
-        is_valid_domain = any(request.email.endswith(domain) for domain in allowed_domains)
-        
-        if is_valid_domain:
-            # 도메인에 따라 다른 대학교 정보 반환
-            if request.email.endswith("@ssafy.com"):
-                university = "SSAFY 대학교"
-                student_name = "김SSAFY"
-            elif request.email.endswith("@naver.com"):
-                university = "네이버 대학교"
-                student_name = "김네이버"
-            elif request.email.endswith("@gmail.com"):
-                university = "구글 대학교"
-                student_name = "김구글"
-            else:
-                university = "테스트 대학교"
-                student_name = "김테스트"
-                
-            return EmailVerificationResponse(
-                is_valid_student=True,
-                student_name=student_name,
-                university=university,
-                student_id="STU001",
-                message=f"{university} 학생으로 확인되었습니다. 사용 가능한 이메일입니다."
-            )
+        if result.get("is_valid"):
+            print(f"✅ SSAFY 학생 검증 성공: {email}")
+            return {
+                "success": True,
+                "data": result,
+                "message": "SSAFY 학생 인증 성공"
+            }
         else:
-            return EmailVerificationResponse(
-                is_valid_student=False,
-                message="지원하지 않는 이메일 도메인입니다. 다른 이메일을 사용해주세요."
-            )
-        
+            print(f"❌ SSAFY 학생 검증 실패: {email}")
+            error_detail = result.get("error", {})
+            return {
+                "success": False,
+                "data": result,
+                "message": "SSAFY 학생 인증 실패",
+                "error": error_detail
+            }
+            
     except Exception as e:
-        print(f"❌ SSAFY 이메일 검증 오류: {e}")
-        return EmailVerificationResponse(
-            is_valid_student=False,
-            message=f"이메일 중복 확인 중 오류가 발생했습니다: {str(e)}"
-        )
-
-@router.get("/ssafy-universities")
-async def get_ssafy_universities():
-    """
-    SSAFY 제휴 대학교 목록 반환
-    """
-    # Mock 데이터 (실제로는 SSAFY API에서 가져올 수 있음)
-    universities = [
-        "SSAFY 대학교",
-        "삼성 대학교",
-        "서울대학교",
-        "연세대학교",
-        "고려대학교",
-        "KAIST",
-        "POSTECH"
-    ]
-    
-    return {"universities": universities}
-
-@router.get("/ssafy-integration-status/{user_id}", response_model=SSAFYIntegrationStatusResponse)
-async def get_ssafy_integration_status(
-    user_id: int,
-    db: Session = Depends(get_session)
-):
-    """사용자의 SSAFY 연동 상태 조회"""
-    try:
-        # 사용자 정보 조회
-        user = db.exec(select(User).where(User.id == user_id)).first()
-        if not user:
-            raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다")
-        
-        # SSAFY 연동 상태 확인
-        is_connected = bool(user.ssafy_user_id and user.ssafy_user_key)
-        
-        return SSAFYIntegrationStatusResponse(
-            is_connected=is_connected,
-            user_id=user.ssafy_user_id,
-            user_key=user.ssafy_user_key,
-            user_name=user.ssafy_user_name,
-            institution_code=user.ssafy_institution_code,
-            message="SSAFY 연동 상태 조회 완료" if is_connected else "SSAFY 연동이 필요합니다"
-        )
-        
-    except Exception as e:
-        print(f"❌ SSAFY 연동 상태 조회 오류: {e}")
-        raise HTTPException(status_code=500, detail="SSAFY 연동 상태 조회 중 오류가 발생했습니다")
-
-# =============================================================================
-# SSAFY API 연동을 위한 핵심 클래스 및 함수들
-# =============================================================================
-
-class SSAFYHeader(BaseModel):
-    """SSAFY API 공통 헤더"""
-    apiName: str
-    transmissionDate: str
-    transmissionTime: str
-    institutionCode: str = "00100"
-    fintechAppNo: str = "001"
-    apiServiceCode: str
-    institutionTransactionUniqueNo: str
-    apiKey: str
-    userKey: Optional[str] = None
-
-class AccountBalanceRequest(BaseModel):
-    """계좌 잔액 조회 요청"""
-    userKey: str
-    accountNo: str
-
-class AccountBalanceResponse(BaseModel):
-    """계좌 잔액 조회 응답"""
-    balance: float
-    currency: str = "KRW"
-    account_name: str
-    bank_name: str
-
-class TransactionHistoryRequest(BaseModel):
-    """거래내역 조회 요청"""
-    userKey: str
-    accountNo: str
-    startDate: str  # YYYYMMDD
-    endDate: str    # YYYYMMDD
-    transactionType: str = "A"  # M:입금, D:출금, A:전체
-    orderByType: str = "DESC"   # ASC:오름차순, DESC:내림차순
-
-class Transaction(BaseModel):
-    """거래 정보"""
-    transactionUniqueNo: str
-    transactionDate: str
-    transactionTime: str
-    transactionType: str
-    transactionTypeName: str
-    transactionAccountNo: str
-    transactionBalance: float
-    transactionAfterBalance: float
-    transactionSummary: str
-    transactionMemo: Optional[str] = None
-
-class TransactionHistoryResponse(BaseModel):
-    """거래내역 조회 응답"""
-    transactions: List[Transaction]
-    totalCount: int
-
-def generate_header(api_name: str, user_key: Optional[str] = None) -> Dict[str, Any]:
-    """SSAFY API 공통 헤더 생성"""
-    now = datetime.now()
-    transmission_date = now.strftime("%Y%m%d")
-    transmission_time = now.strftime("%H%M%S")
-    
-    # 기관거래고유번호 생성 (YYYYMMDDHHMMSS + 6자리 일련번호)
-    unique_no = f"{transmission_date}{transmission_time}{now.microsecond:06d}"[:20]
-    
-    header = {
-        "apiName": api_name,
-        "transmissionDate": transmission_date,
-        "transmissionTime": transmission_time,
-        "institutionCode": "00100",
-        "fintechAppNo": "001",
-        "apiServiceCode": api_name,
-        "institutionTransactionUniqueNo": unique_no,
-        "apiKey": settings.SSAFY_API_KEY
-    }
-    
-    if user_key:
-        header["userKey"] = user_key
-    
-    return header
-
-async def call_ssafy_api(endpoint: str, payload: Dict[str, Any]) -> Dict[str, Any]:
-    """SSAFY API 호출 공통 함수"""
-    try:
-        base_url = "https://finopenapi.ssafy.io/ssafy/api/v1/edu"
-        url = f"{base_url}{endpoint}"
-        
-        headers = {
-            "Content-Type": "application/json"
+        error_detail = {
+            "error_type": type(e).__name__,
+            "error_message": str(e),
+            "email": email,
+            "timestamp": datetime.now().isoformat()
         }
         
-        print(f"🔗 SSAFY API 호출: {url}")
-        print(f"📤 요청 데이터: {json.dumps(payload, ensure_ascii=False, indent=2)}")
+        print(f"❌ SSAFY API 호출 실패: {email}")
+        print(f"❌ 에러 상세: {error_detail}")
         
-        response = requests.post(url, json=payload, headers=headers, timeout=30)
+        logger.error(f"SSAFY API 호출 실패: {error_detail}")
         
-        print(f"📥 응답 상태코드: {response.status_code}")
-        print(f"📥 응답 데이터: {response.text}")
+        raise HTTPException(
+            status_code=500, 
+            detail={
+                "message": "SSAFY API 호출 실패",
+                "error": error_detail
+            }
+        )
+
+@router.post("/verify-ssafy-email")
+async def verify_ssafy_email(email: str = Body(..., embed=True)):
+    """SSAFY 학생 이메일 검증 (프론트엔드 호환성)"""
+    try:
+        print(f"🔍 SSAFY API로 학생 이메일 검증 시작: {email}")
         
-        if response.status_code == 200:
-            return response.json()
+        result = ssafy_service.verify_ssafy_student(email)
+        
+        if result.get("is_valid"):
+            print(f"✅ SSAFY 학생 검증 성공: {email}")
+            return {
+                "success": True,
+                "data": result,
+                "message": "SSAFY 학생 인증 성공"
+            }
         else:
-            raise HTTPException(
-                status_code=response.status_code,
-                detail=f"SSAFY API 호출 실패: {response.text}"
-            )
-    
-    except requests.RequestException as e:
-        print(f"❌ SSAFY API 네트워크 오류: {e}")
-        raise HTTPException(status_code=503, detail="SSAFY API 서비스 연결 실패")
+            print(f"❌ SSAFY 학생 검증 실패: {email}")
+            error_detail = result.get("error", {})
+            return {
+                "success": False,
+                "data": result,
+                "message": "SSAFY 학생 인증 실패",
+                "error": error_detail
+            }
+            
     except Exception as e:
-        print(f"❌ SSAFY API 호출 오류: {e}")
-        raise HTTPException(status_code=500, detail="SSAFY API 호출 중 서버 오류")
+        error_detail = {
+            "error_type": type(e).__name__,
+            "error_message": str(e),
+            "email": email,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        print(f"❌ SSAFY API 호출 실패: {email}")
+        print(f"❌ 에러 상세: {error_detail}")
+        
+        logger.error(f"SSAFY API 호출 실패: {error_detail}")
+        
+        raise HTTPException(
+            status_code=500, 
+            detail={
+                "message": "SSAFY API 호출 실패",
+                "error": error_detail
+            }
+        )
 
-# =============================================================================
-# 핵심 금융 API 엔드포인트들
-# =============================================================================
+@router.post("/create-ssafy-account")
+async def create_ssafy_account(email: str = Body(..., embed=True)):
+    """SSAFY 계정 생성 (신규 가입시)"""
+    try:
+        print(f"🏭 SSAFY API로 계정 생성 시작: {email}")
+        
+        result = ssafy_service.create_user_account(email)
+        
+        print(f"✅ SSAFY 계정 생성 성공: {email}")
+        print(f"✅ 생성된 계정 정보: {result}")
+        
+        return {
+            "success": True,
+            "data": result,
+            "message": "SSAFY 계정 생성 성공",
+            "user_key": result.get("userKey") if isinstance(result, dict) else None
+        }
+            
+    except Exception as e:
+        error_detail = {
+            "error_type": type(e).__name__,
+            "error_message": str(e),
+            "email": email,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        print(f"❌ SSAFY 계정 생성 실패: {email}")
+        print(f"❌ 에러 상세: {error_detail}")
+        
+        logger.error(f"SSAFY 계정 생성 실패: {error_detail}")
+        
+        raise HTTPException(
+            status_code=500, 
+            detail={
+                "message": "SSAFY 계정 생성 실패",
+                "error": error_detail
+            }
+        )
 
-@router.post("/account-balance", response_model=AccountBalanceResponse)
-async def get_account_balance(request: AccountBalanceRequest):
+@router.get("/integration-status")
+async def get_ssafy_integration_status():
+    """SSAFY API 통합 상태 확인"""
+    try:
+        print("🔍 SSAFY API 통합 상태 확인 시작")
+        
+        # 간단한 API 호출로 상태 확인
+        bank_codes = ssafy_service.get_bank_codes()
+        
+        print("✅ SSAFY API 통합 상태 확인 성공")
+        return {
+            "success": True,
+            "status": "connected",
+            "message": "SSAFY API 연동 정상",
+            "timestamp": datetime.now().isoformat(),
+            "api_info": {
+                "base_url": ssafy_service.base_url,
+                "institution_code": ssafy_service.institution_code,
+                "fintech_app_no": ssafy_service.fintech_app_no
+            }
+        }
+            
+    except Exception as e:
+        error_detail = {
+            "error_type": type(e).__name__,
+            "error_message": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        print(f"❌ SSAFY API 통합 상태 확인 실패")
+        print(f"❌ 에러 상세: {error_detail}")
+        
+        logger.error(f"SSAFY API 통합 상태 확인 실패: {error_detail}")
+        
+        return {
+            "success": False,
+            "status": "disconnected",
+            "message": f"SSAFY API 연동 오류: {str(e)}",
+            "timestamp": datetime.now().isoformat(),
+            "error": error_detail
+        }
+
+# ==================== 은행/상품 정보 API ====================
+
+@router.get("/bank-codes")
+async def get_bank_codes():
+    """은행코드 조회"""
+    try:
+        result = ssafy_service.get_bank_codes()
+        return {
+            "success": True,
+            "data": result
+        }
+    except Exception as e:
+        logger.error(f"은행코드 조회 실패: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"은행코드 조회 실패: {str(e)}")
+
+@router.get("/currency-codes")
+async def get_currency_codes():
+    """통화코드 조회"""
+    try:
+        result = ssafy_service.get_currency_codes()
+        return {
+            "success": True,
+            "data": result
+        }
+    except Exception as e:
+        logger.error(f"통화코드 조회 실패: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"통화코드 조회 실패: {str(e)}")
+
+# ==================== 수시입출금 상품/계좌 API ====================
+
+@router.get("/demand-deposit/products")
+async def get_demand_deposit_products():
+    """수시입출금 상품 조회"""
+    try:
+        result = ssafy_service.get_demand_deposit_products()
+        return {
+            "success": True,
+            "data": result
+        }
+    except Exception as e:
+        logger.error(f"수시입출금 상품 조회 실패: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"상품 조회 실패: {str(e)}")
+
+@router.post("/demand-deposit/products")
+async def create_demand_deposit_product(
+    bank_code: str,
+    account_name: str,
+    account_description: str = None
+):
+    """수시입출금 상품 등록"""
+    try:
+        result = ssafy_service.create_demand_deposit_product(
+            bank_code, account_name, account_description
+        )
+        return {
+            "success": True,
+            "data": result
+        }
+    except Exception as e:
+        logger.error(f"수시입출금 상품 등록 실패: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"상품 등록 실패: {str(e)}")
+
+@router.get("/demand-deposit/accounts")
+async def get_demand_deposit_accounts(user_key: str):
+    """수시입출금 계좌 목록 조회"""
+    try:
+        result = ssafy_service.get_demand_deposit_accounts(user_key)
+        return {
+            "success": True,
+            "data": result
+        }
+    except Exception as e:
+        logger.error(f"수시입출금 계좌 조회 실패: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"계좌 조회 실패: {str(e)}")
+
+@router.get("/demand-deposit/accounts/{account_no}")
+async def get_demand_deposit_account(account_no: str, user_key: str):
+    """수시입출금 계좌 조회(단건)"""
+    try:
+        result = ssafy_service.get_demand_deposit_account(account_no, user_key)
+        return {
+            "success": True,
+            "data": result
+        }
+    except Exception as e:
+        logger.error(f"수시입출금 계좌 조회 실패: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"계좌 조회 실패: {str(e)}")
+
+@router.get("/demand-deposit/accounts/{account_no}/balance")
+async def get_account_balance(account_no: str, user_key: str):
     """계좌 잔액 조회"""
     try:
-        header = generate_header("inquireDemandDepositAccountBalance", request.userKey)
-        
-        payload = {
-            "Header": header,
-            "accountNo": request.accountNo
-        }
-        
-        # Mock 데이터 반환 (실제 SSAFY API 연동 시 아래 주석 해제)
-        return AccountBalanceResponse(
-            balance=1250000.0,
-            currency="KRW",
-            account_name="Campus Credo 통장",
-            bank_name="신한은행"
-        )
-        
-        # 실제 SSAFY API 호출 (주석 해제하여 사용)
-        # result = await call_ssafy_api("/demandDeposit/inquireDemandDepositAccountBalance", payload)
-        # return AccountBalanceResponse(
-        #     balance=float(result.get("balance", 0)),
-        #     currency="KRW",
-        #     account_name=result.get("accountName", ""),
-        #     bank_name=result.get("bankName", "")
-        # )
-        
-    except Exception as e:
-        print(f"❌ 계좌 잔액 조회 실패: {e}")
-        raise HTTPException(status_code=500, detail="계좌 잔액 조회에 실패했습니다")
-
-@router.post("/transaction-history", response_model=TransactionHistoryResponse)
-async def get_transaction_history(request: TransactionHistoryRequest):
-    """거래내역 조회"""
-    try:
-        header = generate_header("inquireTransactionHistoryList", request.userKey)
-        
-        payload = {
-            "Header": header,
-            "accountNo": request.accountNo,
-            "startDate": request.startDate,
-            "endDate": request.endDate,
-            "transactionType": request.transactionType,
-            "orderByType": request.orderByType
-        }
-        
-        # Mock 데이터 반환 (실제 SSAFY API 연동 시 아래 주석 해제)
-        mock_transactions = [
-            Transaction(
-                transactionUniqueNo="1001",
-                transactionDate="20241201",
-                transactionTime="143000",
-                transactionType="M",
-                transactionTypeName="입금",
-                transactionAccountNo=request.accountNo,
-                transactionBalance=50000.0,
-                transactionAfterBalance=1250000.0,
-                transactionSummary="용돈 입금",
-                transactionMemo="부모님 용돈"
-            ),
-            Transaction(
-                transactionUniqueNo="1002",
-                transactionDate="20241201",
-                transactionTime="120000",
-                transactionType="D",
-                transactionTypeName="출금",
-                transactionAccountNo=request.accountNo,
-                transactionBalance=15000.0,
-                transactionAfterBalance=1200000.0,
-                transactionSummary="카페 결제",
-                transactionMemo="스터디 카페"
-            ),
-            Transaction(
-                transactionUniqueNo="1003",
-                transactionDate="20241130",
-                transactionTime="180000",
-                transactionType="M",
-                transactionTypeName="입금",
-                transactionAccountNo=request.accountNo,
-                transactionBalance=100000.0,
-                transactionAfterBalance=1215000.0,
-                transactionSummary="적금 만기",
-                transactionMemo="3개월 적금 만기"
-            )
-        ]
-        
-        return TransactionHistoryResponse(
-            transactions=mock_transactions,
-            totalCount=len(mock_transactions)
-        )
-        
-        # 실제 SSAFY API 호출 (주석 해제하여 사용)
-        # result = await call_ssafy_api("/demandDeposit/inquireTransactionHistoryList", payload)
-        # transactions = []
-        # for tx in result.get("transactions", []):
-        #     transactions.append(Transaction(
-        #         transactionUniqueNo=tx.get("transactionUniqueNo"),
-        #         transactionDate=tx.get("transactionDate"),
-        #         transactionTime=tx.get("transactionTime"),
-        #         transactionType=tx.get("transactionType"),
-        #         transactionTypeName=tx.get("transactionTypeName"),
-        #         transactionAccountNo=tx.get("transactionAccountNo"),
-        #         transactionBalance=float(tx.get("transactionBalance", 0)),
-        #         transactionAfterBalance=float(tx.get("transactionAfterBalance", 0)),
-        #         transactionSummary=tx.get("transactionSummary", ""),
-        #         transactionMemo=tx.get("transactionMemo")
-        #     ))
-        # 
-        # return TransactionHistoryResponse(
-        #     transactions=transactions,
-        #         totalCount=len(transactions)
-        # )
-        
-    except Exception as e:
-        print(f"❌ 거래내역 조회 실패: {e}")
-        raise HTTPException(status_code=500, detail="거래내역 조회에 실패했습니다")
-
-@router.post("/create-ssafy-account", response_model=SSAFYAccountCreationResponse)
-async def create_ssafy_account(
-    request: SSAFYAccountCreationRequest,
-    db: Session = Depends(get_session)
-):
-    """
-    SSAFY API를 호출하여 새로운 계정 생성 (MEMBER_01) - 회원가입 완료 시 호출
-    """
-    try:
-        print(f"🏭 SSAFY API 계정 생성 시작: {request.email}")
-        
-        # 1. 이메일 중복 확인 (백엔드 DB만)
-        user_service = UserService(db)
-        email_check = await user_service.check_email_availability(request.email)
-        
-        if not email_check.is_available:
-            return SSAFYAccountCreationResponse(
-                success=False,
-                message=f"이미 등록된 이메일입니다: {email_check.message}"
-            )
-        
-        # 2. SSAFY API 호출하여 계정 생성 (MEMBER_01)
-        # 실제 구현에서는 SSAFY API의 MEMBER_01 엔드포인트 호출
-        ssafy_api_service = SSAFYAPIService()
-        result = await ssafy_api_service.create_user_account(request.email)
-        
-        if result.get("success"):
-            print(f"✅ SSAFY API 계정 생성 성공: {request.email} -> {result.get('user_key')}")
-            return SSAFYAccountCreationResponse(
-                success=True,
-                user_key=result.get("user_key"),
-                message="SSAFY API 계정이 성공적으로 생성되었습니다."
-            )
-        else:
-            print(f"❌ SSAFY API 계정 생성 실패: {result.get('message')}")
-            return SSAFYAccountCreationResponse(
-                success=False,
-                message=result.get("message", "SSAFY API 계정 생성에 실패했습니다.")
-            )
-        
-    except Exception as e:
-        print(f"❌ SSAFY API 계정 생성 실패: {e}")
-        return SSAFYAccountCreationResponse(
-            success=False,
-            message=f"SSAFY API 계정 생성 중 오류가 발생했습니다: {str(e)}"
-        )
-
-@router.get("/user-financial-summary/{user_key}")
-async def get_user_financial_summary(user_key: str):
-    """사용자 금융 데이터 요약"""
-    try:
-        # Mock 데이터 (실제로는 여러 SSAFY API를 조합하여 생성)
+        result = ssafy_service.get_account_balance(account_no, user_key)
         return {
-            "user_key": user_key,
-            "total_balance": 1250000.0,
-            "accounts": [
-                {
-                    "account_no": "0016174648358792",
-                    "account_name": "Campus Credo 통장",
-                    "bank_name": "신한은행",
-                    "balance": 1250000.0,
-                    "account_type": "수시입출금"
-                }
-            ],
-            "recent_transactions": 3,
-            "monthly_spending": 450000.0,
-            "monthly_income": 500000.0,
-            "savings_accounts": [
-                {
-                    "account_no": "0019169157",
-                    "product_name": "Campus 적금",
-                    "balance": 300000.0,
-                    "interest_rate": 3.5,
-                    "maturity_date": "2024-12-31"
-                }
-            ],
-            "credit_score": 750,
-            "credit_grade": "우수"
+            "success": True,
+            "data": result
         }
-        
     except Exception as e:
-        print(f"❌ 사용자 금융 요약 조회 실패: {e}")
-        raise HTTPException(status_code=500, detail="금융 요약 데이터 조회에 실패했습니다")
+        logger.error(f"계좌 잔액 조회 실패: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"잔액 조회 실패: {str(e)}")
+
+@router.get("/demand-deposit/accounts/{account_no}/transactions")
+async def get_transaction_history(
+    account_no: str,
+    user_key: str,
+    start_date: str = None,
+    end_date: str = None,
+    transaction_type: str = "A",
+    order_by: str = "DESC"
+):
+    """계좌 거래내역 조회"""
+    try:
+        if not start_date:
+            start_date = (datetime.now() - timedelta(days=30)).strftime("%Y%m%d")
+        if not end_date:
+            end_date = datetime.now().strftime("%Y%m%d")
+            
+        result = ssafy_service.get_transaction_history(
+            account_no, start_date, end_date, transaction_type, order_by, user_key
+        )
+        return {
+            "success": True,
+            "data": result
+        }
+    except Exception as e:
+        logger.error(f"거래내역 조회 실패: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"거래내역 조회 실패: {str(e)}")
+
+@router.post("/demand-deposit/accounts/{account_no}/withdraw")
+async def withdraw_from_account(
+    account_no: str,
+    amount: int,
+    summary: str,
+    user_key: str
+):
+    """계좌 출금"""
+    try:
+        result = ssafy_service.withdraw_from_account(account_no, amount, summary, user_key)
+        return {
+            "success": True,
+            "data": result
+        }
+    except Exception as e:
+        logger.error(f"계좌 출금 실패: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"출금 실패: {str(e)}")
+
+@router.post("/demand-deposit/accounts/{account_no}/deposit")
+async def deposit_to_account(
+    account_no: str,
+    amount: int,
+    summary: str,
+    user_key: str
+):
+    """계좌 입금"""
+    try:
+        result = ssafy_service.deposit_to_account(account_no, amount, summary, user_key)
+        return {
+            "success": True,
+            "data": result
+        }
+    except Exception as e:
+        logger.error(f"계좌 입금 실패: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"입금 실패: {str(e)}")
+
+@router.post("/demand-deposit/transfer")
+async def transfer_between_accounts(
+    from_account: str,
+    to_account: str,
+    amount: int,
+    user_key: str
+):
+    """계좌 이체"""
+    try:
+        result = ssafy_service.transfer_between_accounts(from_account, to_account, amount, user_key)
+        return {
+            "success": True,
+            "data": result
+        }
+    except Exception as e:
+        logger.error(f"계좌 이체 실패: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"이체 실패: {str(e)}")
+
+# ==================== 예금 상품/계좌 API ====================
+
+@router.get("/deposit/products")
+async def get_deposit_products():
+    """예금 상품 조회"""
+    try:
+        result = ssafy_service.get_deposit_products()
+        return {
+            "success": True,
+            "data": result
+        }
+    except Exception as e:
+        logger.error(f"예금 상품 조회 실패: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"예금 상품 조회 실패: {str(e)}")
+
+@router.post("/deposit/products")
+async def create_deposit_product(
+    bank_code: str,
+    account_name: str,
+    subscription_period: int,
+    min_balance: int,
+    max_balance: int,
+    interest_rate: float,
+    account_description: str = None,
+    rate_description: str = None
+):
+    """예금 상품 등록"""
+    try:
+        result = ssafy_service.create_deposit_product(
+            bank_code, account_name, subscription_period, min_balance, 
+            max_balance, interest_rate, account_description, rate_description
+        )
+        return {
+            "success": True,
+            "data": result
+        }
+    except Exception as e:
+        logger.error(f"예금 상품 등록 실패: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"예금 상품 등록 실패: {str(e)}")
+
+@router.get("/deposit/accounts")
+async def get_deposit_accounts(user_key: str):
+    """예금 계좌 목록 조회"""
+    try:
+        result = ssafy_service.get_deposit_accounts(user_key)
+        return {
+            "success": True,
+            "data": result
+        }
+    except Exception as e:
+        logger.error(f"예금 계좌 조회 실패: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"예금 계좌 조회 실패: {str(e)}")
+
+# ==================== 적금 상품/계좌 API ====================
+
+@router.get("/savings/products")
+async def get_savings_products():
+    """적금 상품 조회"""
+    try:
+        result = ssafy_service.get_savings_products()
+        return {
+            "success": True,
+            "data": result
+        }
+    except Exception as e:
+        logger.error(f"적금 상품 조회 실패: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"적금 상품 조회 실패: {str(e)}")
+
+@router.post("/savings/products")
+async def create_savings_product(
+    bank_code: str,
+    account_name: str,
+    subscription_period: int,
+    min_balance: int,
+    max_balance: int,
+    interest_rate: float,
+    account_description: str = None,
+    rate_description: str = None
+):
+    """적금 상품 등록"""
+    try:
+        result = ssafy_service.create_savings_product(
+            bank_code, account_name, subscription_period, min_balance, 
+            max_balance, interest_rate, account_description, rate_description
+        )
+        return {
+            "success": True,
+            "data": result
+        }
+    except Exception as e:
+        logger.error(f"적금 상품 등록 실패: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"적금 상품 등록 실패: {str(e)}")
+
+@router.get("/savings/accounts")
+async def get_savings_accounts(user_key: str):
+    """적금 계좌 목록 조회"""
+    try:
+        result = ssafy_service.get_savings_accounts(user_key)
+        return {
+            "success": True,
+            "data": result
+        }
+    except Exception as e:
+        logger.error(f"적금 계좌 조회 실패: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"적금 계좌 조회 실패: {str(e)}")
+
+# ==================== 대출 상품/심사/계좌 API ====================
+
+@router.get("/loan/credit-rating-criteria")
+async def get_credit_rating_criteria():
+    """신용등급 기준 조회"""
+    try:
+        result = ssafy_service.get_credit_rating_criteria()
+        return {
+            "success": True,
+            "data": result
+        }
+    except Exception as e:
+        logger.error(f"신용등급 기준 조회 실패: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"신용등급 기준 조회 실패: {str(e)}")
+
+@router.get("/loan/products")
+async def get_loan_products():
+    """대출 상품 조회"""
+    try:
+        result = ssafy_service.get_loan_products()
+        return {
+            "success": True,
+            "data": result
+        }
+    except Exception as e:
+        logger.error(f"대출 상품 조회 실패: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"대출 상품 조회 실패: {str(e)}")
+
+@router.post("/loan/products")
+async def create_loan_product(
+    bank_code: str,
+    account_name: str,
+    rating_unique_no: str,
+    loan_period: int,
+    min_balance: int,
+    max_balance: int,
+    interest_rate: float,
+    account_description: str = None
+):
+    """대출 상품 등록"""
+    try:
+        result = ssafy_service.create_loan_product(
+            bank_code, account_name, rating_unique_no, loan_period,
+            min_balance, max_balance, interest_rate, account_description
+        )
+        return {
+            "success": True,
+            "data": result
+        }
+    except Exception as e:
+        logger.error(f"대출 상품 등록 실패: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"대출 상품 등록 실패: {str(e)}")
+
+@router.get("/loan/my-credit-rating")
+async def get_my_credit_rating(user_key: str):
+    """내 신용등급 조회"""
+    try:
+        result = ssafy_service.get_my_credit_rating(user_key)
+        return {
+            "success": True,
+            "data": result
+        }
+    except Exception as e:
+        logger.error(f"신용등급 조회 실패: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"신용등급 조회 실패: {str(e)}")
+
+@router.get("/loan/applications")
+async def get_loan_applications(user_key: str):
+    """대출심사 목록 조회"""
+    try:
+        result = ssafy_service.get_loan_applications(user_key)
+        return {
+            "success": True,
+            "data": result
+        }
+    except Exception as e:
+        logger.error(f"대출심사 목록 조회 실패: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"대출심사 목록 조회 실패: {str(e)}")
+
+@router.get("/loan/accounts")
+async def get_loan_accounts(user_key: str):
+    """대출 계좌 목록 조회"""
+    try:
+        result = ssafy_service.get_loan_accounts(user_key)
+        return {
+            "success": True,
+            "data": result
+        }
+    except Exception as e:
+        logger.error(f"대출 계좌 조회 실패: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"대출 계좌 조회 실패: {str(e)}")
+
+# ==================== 계좌 인증 API ====================
+
+@router.post("/account-auth/open")
+async def open_account_auth(
+    account_no: str,
+    auth_text: str,
+    user_key: str
+):
+    """1원 송금 (계좌 인증)"""
+    try:
+        result = ssafy_service.open_account_auth(account_no, auth_text, user_key)
+        return {
+            "success": True,
+            "data": result
+        }
+    except Exception as e:
+        logger.error(f"계좌 인증 실패: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"계좌 인증 실패: {str(e)}")
+
+@router.post("/account-auth/verify")
+async def check_auth_code(
+    account_no: str,
+    auth_text: str,
+    auth_code: str,
+    user_key: str
+):
+    """1원 송금 검증"""
+    try:
+        result = ssafy_service.check_auth_code(account_no, auth_text, auth_code, user_key)
+        return {
+            "success": True,
+            "data": result
+        }
+    except Exception as e:
+        logger.error(f"인증코드 검증 실패: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"인증코드 검증 실패: {str(e)}")
+
+# ==================== 거래 메모 API ====================
+
+@router.post("/transaction-memo")
+async def add_transaction_memo(
+    account_no: str,
+    transaction_unique_no: str,
+    transaction_memo: str,
+    user_key: str
+):
+    """거래내역 메모"""
+    try:
+        result = ssafy_service.add_transaction_memo(
+            account_no, transaction_unique_no, transaction_memo, user_key
+        )
+        return {
+            "success": True,
+            "data": result
+        }
+    except Exception as e:
+        logger.error(f"거래내역 메모 실패: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"거래내역 메모 실패: {str(e)}")
+
+# ==================== 편의 API ====================
+
+@router.get("/user/financial-summary")
+async def get_user_financial_summary(user_key: str):
+    """사용자 금융 현황 요약"""
+    try:
+        result = ssafy_service.get_user_financial_summary(user_key)
+        return {
+            "success": True,
+            "data": result
+        }
+    except Exception as e:
+        logger.error(f"금융 현황 요약 조회 실패: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"금융 현황 요약 조회 실패: {str(e)}")
+
+@router.get("/user/recent-transactions")
+async def get_recent_transactions(
+    user_key: str,
+    days: int = Query(30, ge=1, le=365, description="조회할 일수 (1-365일)")
+):
+    """최근 거래내역 조회"""
+    try:
+        result = ssafy_service.get_recent_transactions(user_key, days)
+        return {
+            "success": True,
+            "data": result
+        }
+    except Exception as e:
+        logger.error(f"최근 거래내역 조회 실패: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"거래내역 조회 실패: {str(e)}")
+
+# ==================== 관리자 API ====================
+
+@router.post("/admin/issue-api-key")
+async def issue_api_key(manager_id: str = Body(..., embed=True)):
+    """앱 API KEY 발급"""
+    try:
+        result = ssafy_service.issue_api_key(manager_id)
+        return {
+            "success": True,
+            "data": result
+        }
+    except Exception as e:
+        logger.error(f"API KEY 발급 실패: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"API KEY 발급 실패: {str(e)}")
+
+@router.post("/admin/reissue-api-key")
+async def reissue_api_key(manager_id: str = Body(..., embed=True)):
+    """앱 API KEY 재발급"""
+    try:
+        result = ssafy_service.reissue_api_key(manager_id)
+        return {
+            "success": True,
+            "data": result
+        }
+    except Exception as e:
+        logger.error(f"API KEY 재발급 실패: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"API KEY 재발급 실패: {str(e)}")
+
+# ==================== 상태 확인 API ====================
+
+@router.get("/health")
+async def health_check():
+    """SSAFY API 연동 상태 확인"""
+    try:
+        # 간단한 API 호출로 상태 확인
+        bank_codes = ssafy_service.get_bank_codes()
+        return {
+            "success": True,
+            "status": "healthy",
+            "message": "SSAFY API 연동 정상",
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"SSAFY API 상태 확인 실패: {str(e)}")
+        return {
+            "success": False,
+            "status": "unhealthy",
+            "message": f"SSAFY API 연동 오류: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }

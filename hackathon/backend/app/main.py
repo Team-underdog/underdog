@@ -41,11 +41,11 @@ app.add_middleware(
 )
 
 # 라우터 등록
-app.include_router(health_router, prefix="/api")
+app.include_router(health_router, prefix="/api", tags=["health"])
 app.include_router(auth_v2_router, prefix="/api", tags=["auth"])      # 새로운 자체 인증 (우선순위)
 app.include_router(auth_router, prefix="/api", tags=["auth-legacy"])  # 기존 SSAFY 인증
 app.include_router(university_router, prefix="/api", tags=["university"])
-app.include_router(ssafy_router, prefix="/api/auth", tags=["ssafy"])
+app.include_router(ssafy_router, prefix="/api", tags=["ssafy"])  # SSAFY API 통합
 app.include_router(user_registration_router, prefix="/api", tags=["user-registration"])  # 회원가입 및 계좌 생성 API
 app.include_router(home_dashboard_router, prefix="/api", tags=["home-dashboard"])  # 홈화면 대시보드 API
 app.include_router(social_finance_router, prefix="/api", tags=["social-finance"])  # 소셜 금융 API

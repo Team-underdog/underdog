@@ -1,7 +1,7 @@
 // 백엔드 API 서비스 설정
 // 모바일 앱에서 접근할 수 있도록 로컬 네트워크 IP 사용
 // 개발 환경에서는 컴퓨터의 로컬 IP 주소를 사용해야 함
-const API_BASE_URL = 'http://192.168.10.45:8000'; // 현재 로컬 IP
+export const API_BASE_URL = 'http://192.168.10.45:8000'; // 현재 로컬 IP
 
 // API 엔드포인트
 export const API_ENDPOINTS = {
@@ -12,9 +12,9 @@ export const API_ENDPOINTS = {
     CHECK_EMAIL: `${API_BASE_URL}/api/auth/check-email`,
     ME: `${API_BASE_URL}/api/auth/me`,
     PROFILE: `${API_BASE_URL}/api/auth/profile`,
-    VERIFY_SSAFY_EMAIL: `${API_BASE_URL}/api/auth/verify-ssafy-email`,
-    CREATE_SSAFY_ACCOUNT: `${API_BASE_URL}/api/auth/create-ssafy-account`,
-    SSAFY_INTEGRATION_STATUS: `${API_BASE_URL}/api/auth/ssafy-integration-status`,
+    VERIFY_SSAFY_EMAIL: `${API_BASE_URL}/api/ssafy/verify-ssafy-email`,
+    CREATE_SSAFY_ACCOUNT: `${API_BASE_URL}/api/ssafy/create-ssafy-account`,
+    SSAFY_INTEGRATION_STATUS: `${API_BASE_URL}/api/ssafy/integration-status`,
   },
   // 대학교
   UNIVERSITY: {

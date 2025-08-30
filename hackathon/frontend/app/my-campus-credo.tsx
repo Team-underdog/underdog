@@ -9,6 +9,7 @@ import {
   Alert,
   Switch,
   Modal,
+  Image,
 } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
@@ -188,6 +189,23 @@ export default function MyCampusCredoPage() {
 
   const getAchievementIcon = (icon: string) => {
     return icon as any;
+  };
+
+  // 이름을 성이름 순으로 변환하는 함수
+  const formatDisplayName = (displayName: string | null | undefined): string => {
+    if (!displayName) return '사용자';
+    
+    // 공백으로 분리하여 성과 이름 구분
+    const nameParts = displayName.trim().split(/\s+/);
+    if (nameParts.length >= 2) {
+      // "이름 성" → "성 이름" 순서로 변경
+      const firstName = nameParts[0];
+      const lastName = nameParts.slice(1).join(' ');
+      return `${lastName} ${firstName}`;
+    }
+    
+    // 공백이 없거나 한 글자인 경우 그대로 반환
+    return displayName;
   };
 
   const DataIntegrationModal = () => (
@@ -370,7 +388,7 @@ export default function MyCampusCredoPage() {
               </View>
             </View>
             <View style={styles.profileInfo}>
-              <Text style={styles.userName}>{userData?.display_name}</Text>
+              <Text style={styles.userName}>{formatDisplayName(userData?.display_name)}</Text>
               <Text style={styles.userEmail}>{userData?.email}</Text>
               <Text style={styles.userUniversity}>
                 {userData?.current_university} {userData?.current_department} {userData?.grade_level}학년
